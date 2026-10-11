@@ -38,7 +38,13 @@ const fetchQuestions = async () => {
   loadingQuiz.value = true
   try {
     const { data, error } = await supabase.from('questions').select('*')
-    if (error) throw error
+    
+    if (error) {
+      console.error('Error dari Supabase:', error.message)
+      throw error
+    }
+
+    console.log('Data Soal yang Berhasil Diambil:', data) // <-- Cek struktur data di sini
     questions.value = data || []
   } catch (err) {
     console.error('Gagal memuat soal:', err.message)
@@ -82,7 +88,7 @@ const saveScoreToSupabase = async () => {
 
 const nextQuestion = () => {
   const currentQ = questions.value[currentIndex.value]
-  if (selectedAnswer.value === currentQ.answer) {
+  if (selectedAnswer.value === currentQ.correct_option) {
     score.value += 10
   }
 
