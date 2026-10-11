@@ -127,3 +127,175 @@
   background: #9ca3af;
   cursor: not-allowed;
 }
+
+/* Dashboard Cards */
+.dashboard-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  text-align: left;
+}
+
+.dashboard-card h2 {
+  font-size: 1.3rem;
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #1f2937;
+}
+
+.sub-panel {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.sub-panel.margin-top {
+  margin-top: 20px;
+}
+
+.sub-panel h3 {
+  font-size: 1.05rem;
+  margin-top: 0;
+  margin-bottom: 14px;
+  color: #374151;
+}
+
+/* Form Styles */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.input-group input, 
+.input-group select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.input-group input:focus, 
+.input-group select:focus {
+  border-color: #4f46e5;
+}
+
+.options-grid-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Buttons */
+.btn-action {
+  padding: 11px 18px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  color: white;
+  transition: opacity 0.2s;
+}
+
+.btn-add-user {
+  background: #10b981;
+}
+
+.btn-add-question {
+  background: #4f46e5;
+  align-self: flex-start;
+}
+
+.btn-action:hover {
+  opacity: 0.9;
+}
+
+/* Table */
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.styled-table th, .styled-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.styled-table th {
+  background: #f3f4f6;
+  text-align: left;
+  color: #374151;
+}
+
+.role-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.role-tag.admin { background: #fee2e2; color: #991b1b; }
+.role-tag.guru { background: #fef3c7; color: #92400e; }
+.role-tag.murid { background: #d1fae5; color: #065f46; }
+
+/* Navigation Tabs Navbar */
+.navbar-tabs {
+  display: flex;
+  gap: 12px;
+  background: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  margin-bottom: 24px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4b5563;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.tab-btn.active {
+  background: #4f46e5;
+  color: white;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
