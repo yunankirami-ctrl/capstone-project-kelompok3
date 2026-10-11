@@ -5,87 +5,63 @@ import Login from './components/Login.vue'
 import Register from './components/Register.vue'
 import Leaderboard from './components/Leaderboard.vue'
 
-// Status Autentikasi & Navigasi Form
-const currentUser = ref(null)
-const loadingSession = ref(true)
-const isRegisterMode = ref(false) // Mengatur tampilan Login atau Register
+const user = ref(null)
+const isRegistering = ref(false)
 
-// Data Kuis
+// State Kuis & Kategori
+const categories = ref([
+  { id: 'math', name: 'Matematika', icon: '🔢', color: '#4F46E5' },
+  { id: 'science', name: 'IPA (Sains)', icon: '🔬', color: '#10B981' },
+  { id: 'indo', name: 'Bahasa Indonesia', icon: '📖', color: '#F59E0B' },
+  { id: 'english', name: 'Bahasa Inggris', icon: '🔤', color: '#EC4899' }
+])
+
+const selectedCategory = ref(null)
 const questions = ref([])
 const currentIndex = ref(0)
 const selectedAnswer = ref(null)
 const score = ref(0)
 const quizFinished = ref(false)
-const loadingQuiz = ref(false)
+const loading = ref(false)
 
+// Cek sesi user saat aplikasi dimuat
 onMounted(async () => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session) {
-    currentUser.value = session.user
-    fetchQuestions()
-  }
-  loadingSession.value = false
+  const { data } = await supabase.auth.getSession()
+  user.value = data.session?.user || null
 
   supabase.auth.onAuthStateChange((_event, session) => {
-    currentUser.value = session?.user || null
-    if (currentUser.value) {
-      fetchQuestions()
-    }
+    user.value = session?.user || null
   })
 })
 
-const fetchQuestions = async () => {
-  loadingQuiz.value = true
-  try {
-    const { data, error } = await supabase.from('questions').select('*')
-    
-    if (error) {
-      console.error('Error dari Supabase:', error.message)
-      throw error
-    }
-
-    console.log('Data Soal yang Berhasil Diambil:', data) // <-- Cek struktur data di sini
-    questions.value = data || []
-  } catch (err) {
-    console.error('Gagal memuat soal:', err.message)
-  } finally {
-    loadingQuiz.value = false
-  }
-}
-
-const handleLoginSuccess = (user) => {
-  currentUser.value = user
-}
-
+// Fungsi Logout
 const handleLogout = async () => {
   await supabase.auth.signOut()
-  currentUser.value = null
-  restartQuiz()
+  resetQuiz()
 }
 
-const handleAnswer = (option) => {
+// Memilih Mata Pelajaran & Ambil Soal
+const selectCategory = async (category) => {
+  selectedCategory.value = category
+  loading.value = true
+  
+  // Ambil soal berdasarkan kategori (atau ambil semua jika belum ada filter di DB)
+  const { data, error } = await supabase.from('questions').select('*')
+  
+  if (error) {
+    console.error('Error fetching questions:', error)
+  } else {
+    questions.value = data || []
+  }
+  loading.value = false
+}
+
+// Pilih Jawaban
+const handleSelectAnswer = (option) => {
   selectedAnswer.value = option
 }
 
-const saveScoreToSupabase = async () => {
-  try {
-    const { error } = await supabase
-      .from('quiz_attempts')
-      .insert([
-        { 
-          score: score.value, 
-          created_at: new Date(),
-          user_id: currentUser.value?.id 
-        }
-      ])
-
-    if (error) throw error
-    console.log('Skor berhasil disimpan ke Supabase!')
-  } catch (err) {
-    console.error('Gagal menyimpan skor:', err.message)
-  }
-}
-
+// Lanjut Soal Berikutnya
 const nextQuestion = () => {
   const currentQ = questions.value[currentIndex.value]
   if (selectedAnswer.value === currentQ.correct_option) {
@@ -97,199 +73,127 @@ const nextQuestion = () => {
     currentIndex.value++
   } else {
     quizFinished.value = true
-    saveScoreToSupabase()
+    saveScore()
   }
 }
 
-const restartQuiz = () => {
+// Simpan Skor ke Supabase
+const saveScore = async () => {
+  if (!user.value) return
+  await supabase.from('quiz_attempts').insert([
+    {
+      user_id: user.value.id,
+      score: score.value
+    }
+  ])
+}
+
+// Reset Kembali ke Pilihan Mapel
+const resetQuiz = () => {
+  selectedCategory.value = null
+  questions.value = []
   currentIndex.value = 0
   score.value = 0
-  selectedAnswer.value = null
   quizFinished.value = false
+  selectedAnswer.value = null
 }
 </script>
 
 <template>
-  <main class="quiz-container">
-    <div class="header-bar" v-if="currentUser">
-      <span class="user-email">Halo, {{ currentUser.email }}</span>
-      <button @click="handleLogout" class="logout-btn">Keluar</button>
-    </div>
-
-    <h1>Portal Kuis Interaktif SD</h1>
-
-    <div v-if="loadingSession">
-      <p class="center-text">Memeriksa sesi...</p>
-    </div>
-
-    <!-- Bagian Auth: Tampil jika belum login -->
-    <div v-else-if="!currentUser">
-      <!-- Tampilkan Register atau Login berdasarkan nilai isRegisterMode -->
-      <div v-if="isRegisterMode">
-        <Register @switch-to-login="isRegisterMode = false" />
+  <div class="app-container">
+    <!-- Header -->
+    <header class="main-header">
+      <h1>🎓 Portal Kuis Interaktif SD</h1>
+      <div v-if="user" class="user-badge">
+        <span>Halo, <strong>{{ user.email.split('@')[0] }}</strong>!</span>
+        <button @click="handleLogout" class="btn-logout">Keluar</button>
       </div>
-      <div v-else>
-        <Login @login-success="handleLoginSuccess" />
-        <p class="switch-auth-text">
-          Belum punya akun? 
-          <button @click="isRegisterMode = true" class="text-link">Daftar di sini</button>
-        </p>
-      </div>
-    </div>
+    </header>
 
-    <!-- Bagian Utama Kuis: Tampil jika sudah login -->
-    <div v-else>
-      <div v-if="loadingQuiz">
-        <p class="center-text">Memuat soal kuis...</p>
-      </div>
+    <!-- Tampilan Sebelum Login -->
+    <main v-if="!user" class="auth-wrapper">
+      <Register v-if="isRegistering" @toggle="isRegistering = false" />
+      <Login v-else @toggle="isRegistering = true" />
+    </main>
 
-      <div v-else-if="questions.length === 0">
-        <p class="center-text">Belum ada soal tersedia di tabel <code>questions</code>.</p>
-      </div>
+    <!-- Tampilan Setelah Login -->
+    <main v-else class="content-wrapper">
+      
+      <!-- 1. PILIHAN MATA PELAJARAN (Jika belum memilih mapel) -->
+      <section v-if="!selectedCategory" class="category-selection">
+        <h2>📚 Pilih Mata Pelajaran</h2>
+        <p>Pilih topik kuis yang ingin kamu kerjakan hari ini:</p>
 
-      <div v-else-if="!quizFinished">
-        <div class="card">
-          <h3>Soal {{ currentIndex + 1 }} dari {{ questions.length }}</h3>
-          <p class="question-text">{{ questions[currentIndex].question_text }}</p>
+        <div class="category-grid">
+          <div 
+            v-for="cat in categories" 
+            :key="cat.id" 
+            class="category-card"
+            :style="{ borderColor: cat.color }"
+            @click="selectCategory(cat)"
+          >
+            <div class="cat-icon">{{ cat.icon }}</div>
+            <h3>{{ cat.name }}</h3>
+            <button class="btn-start" :style="{ backgroundColor: cat.color }">Mulai Kuis</button>
+          </div>
+        </div>
 
-          <div class="options">
-            <button 
-              v-for="(opt, idx) in questions[currentIndex].options" 
+        <div class="leaderboard-section">
+          <Leaderboard />
+        </div>
+      </section>
+
+      <!-- 2. HALAMAN KUIS (Jika mapel sudah dipilih) -->
+      <section v-else class="quiz-section">
+        <button @click="resetQuiz" class="btn-back">⬅ Kembali ke Pilihan Mapel</button>
+
+        <div v-if="loading" class="loading-state">
+          <p>⏳ Memuat soal...</p>
+        </div>
+
+        <!-- Jika tidak ada soal -->
+        <div v-else-if="questions.length === 0" class="empty-state">
+          <h3>Belum ada soal untuk {{ selectedCategory.name }}</h3>
+          <p>Silakan tambahkan data di tabel <code>questions</code> Supabase[cite: 7].</p>
+        </div>
+
+        <!-- Jika Kuis Selesai -->
+        <div v-else-if="quizFinished" class="result-card">
+          <h2>🎉 Kuis Selesai!</h2>
+          <p class="final-score">Skor Kamu: <span>{{ score }}</span></p>
+          <button @click="resetQuiz" class="btn-restart">Coba Lagi / Pilih Mapel Lain</button>
+        </div>
+
+        <!-- Tampilan Soal Kuis -->
+        <div v-else class="question-card">
+          <div class="quiz-header">
+            <span class="badge-cat">{{ selectedCategory.name }}</span>
+            <span class="progress-text">Soal {{ currentIndex + 1 }} dari {{ questions.length }}</span>
+          </div>
+
+          <h3 class="q-text">{{ questions[currentIndex].question_text }}</h3>
+
+          <div class="options-grid">
+            <button
+              v-for="(opt, idx) in questions[currentIndex].options"
               :key="idx"
-              :class="{ selected: selectedAnswer === opt }"
-              @click="handleAnswer(opt)"
-              class="option-btn"
+              :class="['option-btn', { active: selectedAnswer === opt }]"
+              @click="handleSelectAnswer(opt)"
             >
               {{ opt }}
             </button>
           </div>
 
           <button 
-            class="next-btn" 
-            :disabled="!selectedAnswer" 
-            @click="nextQuestion"
+            @click="nextQuestion" 
+            :disabled="!selectedAnswer"
+            class="btn-next"
           >
-            {{ currentIndex === questions.length - 1 ? 'Selesai' : 'Selanjutnya' }}
+            {{ currentIndex === questions.length - 1 ? 'Selesai' : 'Lanjut ➡' }}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div v-else class="result-card">
-        <h2>Kuis Selesai! 🎉</h2>
-        <p>Skor Akhir Anda: <strong>{{ score }}</strong></p>
-        <button @click="restartQuiz" class="next-btn">Ulangi Kuis</button>
-      </div>
-
-      <Leaderboard />
-    </div>
-  </main>
+    </main>
+  </div>
 </template>
-
-<style scoped>
-.quiz-container {
-  max-width: 600px;
-  margin: 40px auto;
-  padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #f9f9f9;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-.header-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  background: white;
-  padding: 10px 16px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-}
-.user-email {
-  font-size: 0.9rem;
-  color: #475569;
-  font-weight: 500;
-}
-.logout-btn {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.center-text {
-  text-align: center;
-  color: #64748b;
-  margin: 20px 0;
-}
-.card, .result-card {
-  background: white;
-  padding: 24px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  margin-bottom: 20px;
-}
-.question-text {
-  font-size: 1.1rem;
-  margin-bottom: 20px;
-  font-weight: 500;
-}
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.option-btn {
-  padding: 12px 16px;
-  border: 2px solid #e0e0e0;
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
-  text-align: left;
-  font-size: 1rem;
-  transition: all 0.2s;
-}
-.option-btn:hover {
-  border-color: #4f46e5;
-}
-.option-btn.selected {
-  background: #e0e7ff;
-  border-color: #4f46e5;
-  color: #312e81;
-  font-weight: 600;
-}
-.next-btn {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
-  width: 100%;
-}
-.next-btn:disabled {
-  background: #cbd5e1;
-  cursor: not-allowed;
-}
-.switch-auth-text {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 0.9rem;
-  color: #64748b;
-}
-.text-link {
-  background: none;
-  border: none;
-  color: #4f46e5;
-  cursor: pointer;
-  font-weight: 600;
-  padding: 0;
-}
-.text-link:hover {
-  text-decoration: underline;
-}
-</style>
