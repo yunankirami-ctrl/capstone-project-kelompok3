@@ -1,11 +1,15 @@
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { supabase } from './supabase/supabase.js'
 import Login from './components/Login.vue'
+//note: Register ditampilkan bergantian dengan Login pada area autentikasi.
+import Register from './components/Register.vue'
 import Leaderboard from './components/Leaderboard.vue'
 
 // Sesi User
 const currentUser = ref(null)
+//note: Cek form Login atau Register
+const showRegister = ref(false)
 const currentTab = ref('home')
 
 // Kategori Mapel
@@ -59,6 +63,22 @@ const handleLoginSuccess = async (userData) => {
   currentTab.value = 'home'
   if (userData.role === 'admin') fetchAllUsers()
 }
+
+//note: Restore session saat aplikasi dimuat ulang, jika user sudah login sebelumnya.
+const restoreSession = async () => {
+  const { data } = await supabase.auth.getSession()
+  if (!data.session?.user) return
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', data.session.user.id)
+    .single()
+
+  if (profile) handleLoginSuccess(profile)
+}
+
+onMounted(restoreSession)
 
 const fetchAllUsers = async () => {
   const { data } = await supabase.from('profiles').select('*')
@@ -273,6 +293,8 @@ const resetNavigation = () => {
 
 const handleLogout = () => {
   clearInterval(timerInterval)
+  //note: Session Supabase ikut dihapus saat pengguna keluar dari aplikasi.
+  supabase.auth.signOut()
   currentUser.value = null
   currentTab.value = 'home'
   resetNavigation()
@@ -294,7 +316,13 @@ onUnmounted(() => {
     </header>
 
     <main v-if="!currentUser">
-      <Login @login-success="handleLoginSuccess" />
+      <!-- //note: Login dan Register memakai satu area autentikasi yang saling bertukar. -->
+      <Register v-if="showRegister" @switch-to-login="showRegister = false" />
+      <Login
+        v-else
+        @login-success="handleLoginSuccess"
+        @switch-to-register="showRegister = true"
+      />
     </main>
 
     <main v-else class="content-wrapper">

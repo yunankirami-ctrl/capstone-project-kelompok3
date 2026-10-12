@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
+//note: Form register
+const username = ref('')
+const fullName = ref('')
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
@@ -16,14 +19,26 @@ const handleRegister = async () => {
   successMessage.value = ''
 
   try {
-    const { data, error } = await supabase.auth.signUp({
+    if (password.value.length < 6) {
+      throw new Error('Password minimal 6 karakter.')
+    }
+
+    //note: Password dikirim ke Supabase Auth
+    const { error } = await supabase.auth.signUp({
       email: email.value,
       password: password.value,
+      //note: row profiles otomatis.
+      options: {
+        data: {
+          username: username.value,
+          full_name: fullName.value || username.value
+        }
+      }
     })
 
     if (error) throw error
 
-    successMessage.value = 'Pendaftaran berhasil! Silakan periksa email Anda atau langsung masuk.'
+    successMessage.value = 'Pendaftaran berhasil! Silakan periksa email Anda, lalu masuk.'
   } catch (err) {
     errorMessage.value = err.message
   } finally {
@@ -37,6 +52,14 @@ const handleRegister = async () => {
     <h2>📝 Daftar Akun Siswa Baru</h2>
     <form @submit.prevent="handleRegister">
       <div class="form-group">
+        <label>Username:</label>
+        <input type="text" v-model="username" placeholder="Nama pengguna" required />
+      </div>
+      <div class="form-group">
+        <label>Nama lengkap:</label>
+        <input type="text" v-model="fullName" placeholder="Nama lengkap" />
+      </div>
+      <div class="form-group">
         <label>Email:</label>
         <input type="email" v-model="email" placeholder="nama@email.com" required />
       </div>
@@ -47,7 +70,7 @@ const handleRegister = async () => {
       </div>
 
       <button type="submit" class="register-btn" :disabled="loading">
-        {{ loading.value ? 'Mendaftarkan...' : 'Daftar' }}
+        {{ loading ? 'Mendaftarkan...' : 'Daftar' }}
       </button>
     </form>
 
@@ -56,7 +79,7 @@ const handleRegister = async () => {
 
     <p class="switch-text">
       Sudah punya akun? 
-      <button @click="emit('switch-to-login')" class="text-link">Masuk di sini</button>
+      <button type="button" @click="emit('switch-to-login')" class="text-link">Masuk di sini</button>
     </p>
   </div>
 </template>
@@ -137,6 +160,7 @@ input:focus {
   border: none;
   color: #4f46e5;
   cursor: pointer;
+  font: inherit;
   font-weight: 600;
   padding: 0;
 }

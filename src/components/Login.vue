@@ -2,41 +2,41 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
-const emit = defineEmits(['login-success'])
+//note: Login sekarang menggunakan Supabase Auth, bukan membandingkan password dari tabel profiles.
+const emit = defineEmits(['login-success', 'switch-to-register'])
 
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
 const loading = ref(false)
 
 const handleLogin = async () => {
   errorMessage.value = ''
-  if (!username.value || !password.value) {
-    errorMessage.value = 'Username dan password harus diisi!'
+  if (!email.value || !password.value) {
+    errorMessage.value = 'Email dan password harus diisi!'
     return
   }
 
   loading.value = true
 
   try {
-    // Cari data user berdasarkan username di tabel profiles
-    const { data, error } = await supabase
+    //note: Supabase Auth menangani verifikasi email dan password.
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value
+    })
+
+    if (error || !authData.user) throw new Error(error?.message || 'Login gagal!')
+
+    //note: Data role dan username diambil dari profiles berdasarkan id Auth user.
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('username', username.value)
+      .eq('id', authData.user.id)
       .single()
 
-    if (error || !data) {
-      throw new Error('Username tidak ditemukan!')
-    }
-
-    // Validasi password sederhana
-    if (data.password !== password.value) {
-      throw new Error('Password salah!')
-    }
-
-    // Jika valid, kirim data user yang berhasil login ke App.vue
-    emit('login-success', data)
+    if (profileError || !profile) throw new Error('Profil pengguna belum tersedia.')
+    emit('login-success', profile)
   } catch (err) {
     errorMessage.value = err.message
   } finally {
@@ -52,11 +52,11 @@ const handleLogin = async () => {
 
     <form @submit.prevent="handleLogin" class="auth-form">
       <div class="form-group">
-        <label>Username</label>
+        <label>Email</label>
         <input 
-          type="text" 
-          v-model="username" 
-          placeholder="Masukkan username..." 
+          type="email" 
+          v-model="email" 
+          placeholder="nama@email.com" 
           required 
         />
       </div>
@@ -77,6 +77,12 @@ const handleLogin = async () => {
         {{ loading ? 'Memproses...' : 'Masuk' }}
       </button>
     </form>
+
+    <!-- //note: Tombol ini membuka form register. -->
+    <p class="switch-text">
+      Belum punya akun?
+      <button type="button" @click="emit('switch-to-register')" class="text-link">Daftar di sini</button>
+    </p>
   </div>
 </template>
 
@@ -120,6 +126,24 @@ const handleLogin = async () => {
   color: #ef4444;
   font-size: 0.85rem;
   margin: 0;
+}
+.switch-text {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+.text-link {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+}
+.text-link:hover {
+  text-decoration: underline;
 }
 .btn-primary {
   background: #4f46e5;
