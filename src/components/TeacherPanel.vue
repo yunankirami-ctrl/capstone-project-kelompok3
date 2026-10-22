@@ -120,7 +120,7 @@ const handleAddQuestionToQuiz = async () => {
     newCorrectOption.value = ''
 
     if (addedQuestionsCount.value >= newQuizTotalQ.value) {
-      toast.success(`Selesai! Semua ${newQuizTotalQ.value} soal kuis "${createdQuizTitle.value}" tersimpan. 🎉`)
+      toast.success(`Selesai! Semua ${newQuizTotalQ.value} soal kuis "${createdQuizTitle.value}" tersimpan.`)
       quitAddingQuestions()
     } else {
       toast.success(`Soal tersimpan! Lanjutkan soal berikutnya (${addedQuestionsCount.value}/${newQuizTotalQ.value}).`)
@@ -174,7 +174,7 @@ const handleAddQuestionToQuiz = async () => {
         </div>
 
         <button type="submit" class="btn-action btn-add-question" :disabled="submitting">
-          {{ submitting ? 'Menyimpan...' : 'Lanjut ke Input Soal ➡' }}
+          <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>{{ submitting ? 'Menyimpan...' : 'Lanjut ke Input Soal →' }}
         </button>
       </form>
     </div>
@@ -218,9 +218,9 @@ const handleAddQuestionToQuiz = async () => {
 
         <div class="teacher-step-actions">
           <button type="submit" class="btn-action btn-add-question" :disabled="submitting">
-            {{ submitting ? 'Menyimpan...' : 'Simpan Soal Ini' }}
+            <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>{{ submitting ? 'Menyimpan...' : 'Simpan Soal Ini' }}
           </button>
-          <button type="button" @click="quitAddingQuestions" class="btn-nav">⬅ Selesai Nanti / Batal</button>
+          <button type="button" @click="quitAddingQuestions" class="btn-nav">← Selesai Nanti / Batal</button>
         </div>
       </form>
     </div>

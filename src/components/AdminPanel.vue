@@ -74,7 +74,7 @@ const updateUserRole = async (userId, newRole) => {
     <div class="sub-panel">
       <div class="list-header">
         <h3>Daftar Pengguna</h3>
-        <button class="btn-nav" @click="fetchAllUsers" :disabled="loading">Muat Ulang</button>
+        <button class="btn-nav" @click="fetchAllUsers" :disabled="loading"><span v-if="loading" class="btn-spinner" aria-hidden="true"></span>{{ loading ? 'Memuat...' : 'Muat Ulang' }}</button>
       </div>
 
       <div v-if="loading" class="state-text">Memuat data...</div>

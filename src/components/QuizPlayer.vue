@@ -49,7 +49,7 @@ const startTimer = () => {
     } else {
       clearInterval(timerInterval)
       timeUp.value = true // [TIM] Set flag DULU sebelum finish biar dialog konfirmasi dilewatin.
-      toast.error('⏰ Waktu habis! Jawaban otomatis dikumpulkan.')
+      toast.error('Waktu habis! Jawaban otomatis dikumpulkan.')
       finishQuiz()
     }
   }, 1000)
@@ -119,14 +119,14 @@ onUnmounted(() => clearInterval(timerInterval))
 
 <template>
   <section class="quiz-section">
-    <button @click="exit" class="btn-back">⬅ Kembali ke Daftar Kuis</button>
+    <button @click="exit" class="btn-back">← Kembali ke Daftar Kuis</button>
 
     <!-- [TIM] Kartu soal yang lagi dibuka -->
     <div v-if="questions.length > 0" class="question-card">
       <div class="quiz-header">
         <span class="badge-cat">{{ quiz.title }}</span>
         <div class="timer-badge" :class="{ danger: timeLeft <= 60 }">
-          ⏱️ Waktu: <strong>{{ formatTime(timeLeft) }}</strong>
+          Waktu: <strong>{{ formatTime(timeLeft) }}</strong>
         </div>
         <span class="progress-text">Soal {{ currentIndex + 1 }} dari {{ questions.length }}</span>
       </div>
@@ -145,15 +145,15 @@ onUnmounted(() => clearInterval(timerInterval))
       </div>
 
       <div class="quiz-nav-footer">
-        <button @click="prevQuestion" :disabled="currentIndex === 0" class="btn-nav">⬅ Sebelumnya</button>
+        <button @click="prevQuestion" :disabled="currentIndex === 0" class="btn-nav">← Sebelumnya</button>
 
         <button
           v-if="currentIndex < questions.length - 1"
           @click="nextQuestion"
           class="btn-nav btn-primary-nav"
-        >Selanjutnya ➡</button>
+        >Selanjutnya →</button>
         <button v-else @click="finishQuiz" :disabled="submitting" class="btn-finish">
-          📤 Selesai &amp; Kirim Jawaban (Finish)
+          <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>Selesai &amp; Kirim Jawaban (Finish)
         </button>
       </div>
     </div>

@@ -66,7 +66,7 @@ defineExpose({ reopen })
   <!-- [TIM] Step 1: pilih mata pelajaran -->
   <section v-if="!selectedCategory" class="category-selection">
     <h2>Pilih Mata Pelajaran</h2>
-    <p></p>
+    <p>Pilih mata kuis dari mata pelajaran yang tersedia</p>
     <div class="category-grid">
       <div
         v-for="cat in categories"
@@ -84,11 +84,11 @@ defineExpose({ reopen })
 
   <!-- [TIM] Step 2: daftar sesi kuis (misal: Quiz Week 1) -->
   <section v-else class="quiz-list-section">
-    <button @click="backToCategories" class="btn-back">⬅ Kembali ke Pilihan Mapel</button>
-    <h2>📋 Daftar Kuis: {{ selectedCategory.name }}</h2>
+    <button @click="backToCategories" class="btn-back">← Kembali ke Pilihan Mapel</button>
+    <h2>Daftar Kuis: {{ selectedCategory.name }}</h2>
     <p>Pilih sesi kuis yang tersedia:</p>
 
-    <div v-if="loading" class="loading-state"><p>⏳ Memuat daftar kuis...</p></div>
+    <div v-if="loading" class="loading-state"><p>Memuat daftar kuis...</p></div>
 
     <div v-else-if="quizList.length === 0" class="empty-state">
       <p>Belum ada sesi kuis yang dibuat untuk mata pelajaran ini.</p>
@@ -96,9 +96,9 @@ defineExpose({ reopen })
 
     <div v-else class="quiz-session-grid">
       <div v-for="quiz in quizList" :key="quiz.id" class="session-card" @click="chooseQuiz(quiz)">
-        <h3>🎯 {{ quiz.title }}</h3>
-        <p>⏱️ Durasi: {{ quiz.duration_minutes }} Menit</p>
-        <p>📝 Jumlah Soal: {{ quiz.total_questions }} Soal</p>
+        <h3>{{ quiz.title }}</h3>
+        <p>Durasi: {{ quiz.duration_minutes }} Menit</p>
+        <p>Jumlah Soal: {{ quiz.total_questions }} Soal</p>
         <button class="btn-start-session">Mulai Ujian</button>
       </div>
     </div>

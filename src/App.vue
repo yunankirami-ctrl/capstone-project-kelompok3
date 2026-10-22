@@ -276,33 +276,33 @@ onUnmounted(() => toast.hide())
       <div v-if="currentTab === 'home'">
         <!-- [TIM] Layar hasil akhir (abis skor diproses App.vue) -->
         <section v-if="quizResult" class="result-card">
-          <h2>🎉 Ujian Selesai!</h2>
+          <h2>Ujian Selesai!</h2>
           <p class="final-score">Nilai Kamu: <span>{{ quizResult.score }}</span> / 100</p>
 
           <p v-if="quizResult.saveFailed" class="info-badge info">
-            ⚠️ Nilai tidak tersimpan ke server (gangguan jaringan). Coba lagi nanti.
+            Nilai tidak tersimpan ke server (gangguan jaringan). Coba lagi nanti.
           </p>
           <p v-else-if="quizResult.countsForLeaderboard" class="info-badge success">
-            ✨ Nilai ini telah terekam secara resmi di Papan Peringkat (Leaderboard)!
+            Nilai ini telah terekam secara resmi di Papan Peringkat (Leaderboard)!
           </p>
           <p v-else-if="quizResult.alreadyRecorded && currentUser.role === 'murid'" class="info-badge info">
-            ℹ️ Anda sudah pernah mengerjakan kuis ini sebelumnya. Nilai latihan ini tidak mengubah skor di Leaderboard.
+            Anda sudah pernah mengerjakan kuis ini sebelumnya. Nilai latihan ini tidak mengubah skor di Leaderboard.
           </p>
           <p v-else-if="currentUser.role !== 'murid'" class="info-badge info">
-            ℹ️ Mode coba-coba ({{ currentUser.role }}) — nilai tidak dicatat ke leaderboard.
+            Mode coba-coba ({{ currentUser.role }}) — nilai tidak dicatat ke leaderboard.
           </p>
 
           <div class="result-actions">
-            <button @click="retryQuiz" class="btn-restart">🔄 Ulangi Kuis (Latihan)</button>
-            <button @click="exitQuiz" class="btn-back-home">🏠 Selesai &amp; Kembali</button>
+            <button @click="retryQuiz" class="btn-restart">Ulangi Kuis (Latihan)</button>
+            <button @click="exitQuiz" class="btn-back-home">Selesai &amp; Kembali</button>
           </div>
         </section>
 
         <!-- [TIM] Lagi muat soal -->
-        <div v-else-if="loadingQuiz" class="loading-state"><p>⏳ Memuat soal...</p></div>
+        <div v-else-if="loadingQuiz" class="loading-state"><p>Memuat soal...</p></div>
 
         <!-- [TIM] Status nyimpen nilai sebentar abis kuis dikumpulin -->
-        <div v-else-if="savingScore" class="loading-state"><p>💾 Menyimpan nilai...</p></div>
+        <div v-else-if="savingScore" class="loading-state"><p>Menyimpan nilai...</p></div>
 
         <!-- [TIM] Kuis lagi jalan -->
         <QuizPlayer

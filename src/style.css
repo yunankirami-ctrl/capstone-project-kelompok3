@@ -1,3 +1,24 @@
+/* [TIM] RESET + CANVAS GLOBAL. Pondasi tampilan biar konsisten antar-browser:
+   box-sizing border-box, buang margin default browser, pasang font Poppins + bg lembut. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+}
+
 .app-container {
   max-width: 800px;
   margin: 0 auto;
@@ -215,9 +236,11 @@
   outline: none;
 }
 
-.input-group input:focus, 
+.input-group input:focus,
 .input-group select:focus {
+  outline: none;
   border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* [TIM] focus-ring biar input aktif keliatan jelas */
 }
 
 .options-grid-inputs {
@@ -527,6 +550,7 @@
 .form-group input:focus {
   outline: none;
   border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* [TIM] focus-ring, sama kayak form panel */
 }
 .error-text {
   color: #ef4444;
@@ -574,6 +598,58 @@
 .btn-primary:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+/* ============================================================
+   [TIM] UTIL TOMBOL & INPUT (dipakai Login, Register, Teacher, Admin)
+   ============================================================ */
+
+/* Bungkus input yang butuh ikon di dalemnya (mis. toggle password) */
+.input-wrap {
+  position: relative;
+}
+.input-wrap input {
+  width: 100%;
+  padding-right: 42px; /* ruang kosongin buat ikon mata */
+}
+.toggle-pass {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  cursor: pointer;
+  color: #64748b;
+}
+.toggle-pass:hover {
+  color: #4f46e5;
+}
+
+/* Spinner kecil pas tombol lagi loading. Warnanya ikut currentColor, jadi
+   otomatis keliatan di tombol terang (btn-primary) maupun gelap (btn-nav). */
+.btn-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.45em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  opacity: 0.85;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation-duration: 1.4s; }
 }
 
 /* ============================================================
