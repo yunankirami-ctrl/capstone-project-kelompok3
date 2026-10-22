@@ -1,13 +1,4 @@
 import { reactive } from 'vue'
-
-// [TIM] useToast - alat notifikasi global kita, PENGGANTI alert()/confirm().
-// Kenapa kita bikin ini? alert() itu blokir UI & jelek buat UX aplikasi anak SD.
-// Cara pakai dari komponen mana pun:
-//   toast.success('...')  toast.error('...')  toast.info('...')
-// Efeknya: muncul kartu kecil di pojok kanan bawah, auto-hilang beberapa detik.
-// Render-nya cuma satu tempat, yaitu komponen ToastHub.vue yang dipasang di App.vue.
-
-// [TIM] State toast global - satu instance dipakai bareng-bareng se-apply.
 const state = reactive({
   visible: false,
   message: '',
@@ -21,7 +12,6 @@ const show = (message, type = 'info', duration = 3500) => {
   state.type = type
   state.visible = true
 
-  // [TIM] Reset timer dulu, biar toast baru nggak kepotong hilang karena timer lama masih jalan.
   clearTimeout(hideTimer)
   hideTimer = setTimeout(() => {
     state.visible = false

@@ -1,12 +1,4 @@
 <script setup>
-// [TIM] PAPAN PERINGKAT - 10 besar murid dengan poin (XP) tertinggi.
-// Rekan-rekan, datanya kita ambil lewat RPC `get_leaderboard` (function SECURITY
-// DEFINER di Supabase). Kenapa RPC? Biar murid bisa lihat skor orang lain TANPA kita
-// buka lebar tabel profiles (nama lengkap tetap ke-lock RLS).
-// Inget: poin TIDAK kita update dari sini - triggered otomatis oleh
-// `record_first_attempt_score` di database (cuma skor PERTAMA yang nambah).
-// Props `refreshKey`: tiap nilainya naik dari App.vue, kita fetch ulang (misal abis kuis selesai).
-
 import { ref, watch, onMounted } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
@@ -18,7 +10,7 @@ const leaderboardData = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
 
-// [TIM] Ambil data lewat RPC. Jalan pas komponen pertama muncul & tiap refreshKey berubah.
+// Ambil data lewat RPC. Jalan pas komponen pertama muncul & tiap refreshKey berubah.
 const fetchLeaderboard = async () => {
   loading.value = true
   errorMessage.value = ''
@@ -38,7 +30,7 @@ const fetchLeaderboard = async () => {
 
 onMounted(fetchLeaderboard)
 
-// [TIM] Watcher ini yang bikin leaderboard auto-refresh pas App.vue naikin refreshKey (abis kuis).
+// leaderboard auto-refresh.
 watch(() => props.refreshKey, fetchLeaderboard)
 </script>
 

@@ -1,5 +1,3 @@
-/* [TIM] RESET + CANVAS GLOBAL. Pondasi tampilan biar konsisten antar-browser:
-   box-sizing border-box, buang margin default browser, pasang font Poppins + bg lembut. */
 *,
 *::before,
 *::after {
@@ -30,20 +28,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap; /* [TIM] RESPONSIVE: judul + badge boleh turun baris biar nggak desak-desakan di HP */
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 25px;
 }
 
-/* [TIM] Ukuran judul ikut natar di layar kecil (aturannya di blok RESPONSIVE paling bawah) */
 .main-header h1 {
   margin: 0;
   font-size: 1.6rem;
 }
 
-/* [TIM] MODE AUTENTIKASI (Login/Register): nggak ada badge user, jadi judul kita
-   tengahin biar sejajar & rapi di atas kartu auth yang juga di tengah (terutama desktop).
-   Begitu login, kelas ini ilang -> balik lagi jadi space-between normal. */
 .main-header.auth-mode {
   justify-content: center;
   align-items: center;
@@ -68,7 +62,6 @@ body {
   cursor: pointer;
 }
 
-/* Grid Kategori Mata Pelajaran */
 .category-selection h2 {
   text-align: center;
   margin-bottom: 5px;
@@ -240,7 +233,7 @@ body {
 .input-group select:focus {
   outline: none;
   border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* [TIM] focus-ring biar input aktif keliatan jelas */
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
 .options-grid-inputs {
@@ -310,7 +303,7 @@ body {
 .navbar-tabs {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap; /* [TIM] RESPONSIVE: tab admin/guru (3 tombol) nggak lagi meluber keluar layar HP */
+  flex-wrap: wrap;
   background: white;
   padding: 10px 16px;
   border-radius: 12px;
@@ -484,7 +477,7 @@ body {
   display: flex;
   gap: 12px;
   justify-content: center;
-  flex-wrap: wrap; /* [TIM] RESPONSIVE: tombol Ulangi/Kembali nimpa rapi kalo layar sempit */
+  flex-wrap: wrap;
   margin-top: 20px;
 }
 
@@ -498,13 +491,7 @@ body {
   cursor: pointer;
 }
 
-/* ============================================================
-   [TIM] AREA AUTENTIKASI (Login & Register)
-   Style di bawah ini DIPAKAI BERSAMA oleh Login.vue dan Register.vue.
-   Sengaja ditaruh di sini (global) biar kedua halaman otomatis identik dan
-   nggak bisa 'bergeser' lagi. Kalau mau ubah tampilan form auth, ubah di sini
-   SAJA - jangan duplikat ke masing-masing komponen.
-   ============================================================ */
+/* AREA AUTENTIKASI  */
 .auth-card {
   background: white;
   padding: 30px;
@@ -550,7 +537,7 @@ body {
 .form-group input:focus {
   outline: none;
   border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* [TIM] focus-ring, sama kayak form panel */
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 .error-text {
   color: #ef4444;
@@ -600,17 +587,13 @@ body {
   cursor: not-allowed;
 }
 
-/* ============================================================
-   [TIM] UTIL TOMBOL & INPUT (dipakai Login, Register, Teacher, Admin)
-   ============================================================ */
-
-/* Bungkus input yang butuh ikon di dalemnya (mis. toggle password) */
+/* TOMBOL & INPUT */
 .input-wrap {
   position: relative;
 }
 .input-wrap input {
   width: 100%;
-  padding-right: 42px; /* ruang kosongin buat ikon mata */
+  padding-right: 42px;
 }
 .toggle-pass {
   position: absolute;
@@ -631,8 +614,6 @@ body {
   color: #4f46e5;
 }
 
-/* Spinner kecil pas tombol lagi loading. Warnanya ikut currentColor, jadi
-   otomatis keliatan di tombol terang (btn-primary) maupun gelap (btn-nav). */
 .btn-spinner {
   display: inline-block;
   width: 0.9em;
@@ -652,53 +633,38 @@ body {
   .btn-spinner { animation-duration: 1.4s; }
 }
 
-/* ============================================================
-   [TIM] RESPONSIVE (MOBILE + DESKTOP)
-   Cara bacanya: style dasar di atas itu 'desktop-friendly', nah blok
-   @media di bawah ini yang nyesuaiin biar tetap enak di layar kecil (HP).
-   Kita pake max-width: artinya 'cuma jalan kalo layar di bawah ukuran ini',
-   jadi layout desktop aslinya nggak ikut berubah. Semua breakpoint dikumpul
-   di sini biar gampang dirawat bareng-bareng.
-   ============================================================ */
+/* RESPONSIVE MOBILE + DESKTOP */
 
-/* Wrapper scroll khusus tabel (dipakai AdminPanel) biar kolom nggak numpuk/meleber */
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 .styled-table {
-  min-width: 460px; /* [TIM] keep columns readable; kalau sempit, .table-scroll yang geser */
+  min-width: 460px;
 }
 
-/* Tablet ke bawah */
 @media (max-width: 640px) {
   .app-container { padding: 14px; }
 
-  /* Header jadi vertikal biar badge user punya ruang sendiri */
   .main-header { flex-direction: column; align-items: flex-start; }
   .main-header h1 { font-size: 1.3rem; }
   .user-badge { width: 100%; justify-content: space-between; }
 
-  /* Tab nav lebih ramping + tombol melebar ngisi baris */
   .navbar-tabs { padding: 8px 10px; gap: 8px; }
   .tab-btn { flex: 1 1 auto; text-align: center; padding: 8px 12px; font-size: 0.88rem; }
 
-  /* Kartu-kartu kasih jarak dalam lebih kecil */
   .dashboard-card { padding: 18px; }
   .auth-card { padding: 22px; margin: 16px auto; }
 
-  /* Footer navigasi kuis boleh wrap, tombol jadi melebar */
   .quiz-nav-footer { flex-wrap: wrap; }
   .quiz-nav-footer .btn-nav,
   .quiz-nav-footer .btn-finish { flex: 1 1 45%; }
 
-  /* Aksi di layar hasil ditumpuk + full width */
   .result-actions { flex-direction: column; }
   .result-actions .btn-restart,
   .result-actions .btn-back-home { width: 100%; }
 }
 
-/* HP kecil: baris 2 kolom jadi 1 kolom biar input nggak sempit */
 @media (max-width: 480px) {
   .form-row,
   .options-grid-inputs { grid-template-columns: 1fr; }

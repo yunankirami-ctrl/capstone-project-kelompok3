@@ -1,36 +1,25 @@
 <script setup>
-// [TIM] HALAMAN KERJAIN KUIS - di sini murid ngerjain soal (Step 3 alur murid).
-// Fungsinya:
-//   - Nampilin soal satu-satu, ada tombol Sebelumnya/Selanjutnya.
-//   - Timer hitung mundur; kalo waktu habis -> jawaban otomatis dikumpulin.
-//   - Hitung skor (skala 100) terus emits 'finish' (score) ke App.vue buat_disimpen ke DB.
-// PENTING buat rekan setim:
-//   - Komponen ini SENGAJA nggak nulis ke database. Nyimpan quiz_attempts, layar hasil,
-//     sama tombol Ulangi/Kembali semua diurus App.vue (biar alur data cuma satu tempat).
-//   - Kalo mau percobaan baru, App.vue naikkkin quizPlayerKey jadi komponen ini remount
-//     dan state soal/timer otomatis fresh lagi (lewat onMounted).
-
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { toast } from '../composables/useToast.js'
 
 const props = defineProps({
-  quiz: { type: Object, required: true },        // [TIM] Baris sesi kuis dari tabel `quizzes` (judul & durasi).
-  questions: { type: Array, required: true }     // [TIM] Daftar soal dari tabel `questions` ( udah diacak App.vue).
+  quiz: { type: Object, required: true },        // Baris sesi kuis dari tabel `quizzes`.
+  questions: { type: Array, required: true }     // Daftar soal dari tabel `questions`.
 })
 
 const emit = defineEmits(['finish', 'exit'])
 
-// [TIM] State pas lagi ngerjain.
+// State pas lagi ngerjain.
 const currentIndex = ref(0)
-const userAnswers = ref({}) // [TIM] Formatnya { nomorSoal: teksJawabanYangDipilih }.
-const submitting = ref(false) // [TIM] Biar tombol finish nggak diklik dua kali.
+const userAnswers = ref({}) // Formatnya { nomorSoal: teksJawabanYangDipilih }.
+const submitting = ref(false) // Biar tombol finish nggak diklik dua kali.
 
-// [TIM] State timer.
+// State timer.
 const timeLeft = ref(0)
 let timerInterval = null
-const timeUp = ref(false) // [TIM] Penanda waktu habis -> finish otomatis tanpa konfirmasi.
+const timeUp = ref(false) // Penanda waktu habis -> finish otomatis tanpa konfirmasi.
 
-// [TIM] Skor akhir dihitung proporsional skala 100 dari jumlah jawaban bener.
+// Skor akhir dihitung proporsional skala 100 dari jumlah jawaban bener.
 const finalScore = computed(() => {
   const totalQ = props.questions.length
   if (totalQ === 0) return 0
@@ -40,7 +29,7 @@ const finalScore = computed(() => {
   return Math.round((correctCount / totalQ) * 100)
 })
 
-// [TIM] Timer hitung mundur; pas habis, kuis langsung dikumpulin otomatis.
+// Timer hitung mundur; pas habis, kuis langsung dikumpulin otomatis.
 const startTimer = () => {
   clearInterval(timerInterval)
   timerInterval = setInterval(() => {
@@ -48,22 +37,21 @@ const startTimer = () => {
       timeLeft.value--
     } else {
       clearInterval(timerInterval)
-      timeUp.value = true // [TIM] Set flag DULU sebelum finish biar dialog konfirmasi dilewatin.
+      timeUp.value = true 
       toast.error('Waktu habis! Jawaban otomatis dikumpulkan.')
       finishQuiz()
     }
   }, 1000)
 }
 
-// [TIM] Format detik -> MM:SS buat tampilan badge timer.
+// Format detik.
 const formatTime = (seconds) => {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
-// [TIM] Jalanin timer pas komponen pertama muncul. Remount (quizPlayerKey di App.vue)
-// bikin state soal/timer selalu fresh tiap percobaan baru.
+// Jalanin timer pas komponen pertama muncul.
 const resetAndStart = () => {
   submitting.value = false
   timeUp.value = false
@@ -75,7 +63,7 @@ const resetAndStart = () => {
 
 onMounted(resetAndStart)
 
-// [TIM] Milih jawaban buat soal yang lagi dibuka.
+// Pilih jawaban buat soal yang lagi dibuka.
 const selectAnswer = (opt) => {
   userAnswers.value[currentIndex.value] = opt
 }
@@ -88,32 +76,31 @@ const nextQuestion = () => {
   if (currentIndex.value < props.questions.length - 1) currentIndex.value++
 }
 
-// [TIM] Beresin kuis: stop timer, terus serahin skor ke App.vue buat_disimpen.
+// Kuis selesai.
 const finishQuiz = async () => {
   if (submitting.value) return
 
   const unanswered = props.questions.length - Object.keys(userAnswers.value).length
   if (unanswered > 0 && timeLeft.value > 0 && !timeUp.value) {
-    // [TIM] Konfirmasi cuma kalo masih ada waktu; kalo waktu udah habis, jawaban langsung masuk.
+    // Konfirmasi cuma kalo masih ada waktu; kalo waktu udah habis, jawaban langsung masuk.
     const sure = window.confirm(
       `Masih ada ${unanswered} soal yang belum dijawab. Yakin ingin mengumpulkan sekarang?`
     )
     if (!sure) return
-    startTimer() // [TIM] Lanjutin timer lagi kalo batal ngumpulin.
+    startTimer()
     return
   }
 
   submitting.value = true
   clearInterval(timerInterval)
 
-  // [TIM] Skor diserahin ke App.vue; yang mutusin "resmi leaderboard atau nggak" itu App
-  // (dia yang punya riwayat quiz_attempts & flag firstAttempt).
+  // Skor diserahin ke App.vue.
   emit('finish', { score: finalScore.value })
 }
 
 const exit = () => emit('exit')
 
-// [TIM] Beresin interval pas komponen dilepas, biar nggak ada timer hantu jalan terus.
+// Bersihin interval pas komponen dilepas.
 onUnmounted(() => clearInterval(timerInterval))
 </script>
 
@@ -121,7 +108,7 @@ onUnmounted(() => clearInterval(timerInterval))
   <section class="quiz-section">
     <button @click="exit" class="btn-back">← Kembali ke Daftar Kuis</button>
 
-    <!-- [TIM] Kartu soal yang lagi dibuka -->
+    <!-- Kartu soal yang lagi dibuka -->
     <div v-if="questions.length > 0" class="question-card">
       <div class="quiz-header">
         <span class="badge-cat">{{ quiz.title }}</span>
@@ -158,7 +145,7 @@ onUnmounted(() => clearInterval(timerInterval))
       </div>
     </div>
 
-    <!-- [TIM] Pengaman kalo ternyata soal kosong -->
+    <!-- Pengaman kalo ternyata soal kosong -->
     <div v-else class="empty-state">
       <p>Kuis ini belum memiliki soal. Hubungi guru Anda.</p>
     </div>
@@ -166,8 +153,7 @@ onUnmounted(() => clearInterval(timerInterval))
 </template>
 
 <style scoped>
-/* [TIM] Style khusus halaman kerjain kuis; kelas umum (btn-back, option-btn, timer-badge)
-   udah ada di style.css global. */
+/* Style khusus halaman kerjain kuis */
 .quiz-header {
   display: flex;
   justify-content: space-between;
@@ -191,7 +177,7 @@ onUnmounted(() => clearInterval(timerInterval))
   font-size: 0.85rem;
 }
 
-/* [TIM] Timer jadi merah pas sisa waktu <= 1 menit biar siswa waspada. */
+/* Timer jadi merah pas sisa waktu mau habis */
 .timer-badge.danger {
   background: #ef4444;
   color: white;
@@ -224,8 +210,6 @@ onUnmounted(() => clearInterval(timerInterval))
   color: #6b7280;
 }
 
-/* [TIM] RESPONSIVE: di HP kartu soal & state kosong dipadetin dikit biar muat lega.
-   Sengaja di scoped sini karena style global nggak bisa nimpa kelas di komponen ini. */
 @media (max-width: 640px) {
   .question-card,
   .empty-state { padding: 16px; }

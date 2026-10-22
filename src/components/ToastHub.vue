@@ -1,14 +1,10 @@
 <script setup>
-// [TIM] ToastHub = wadah tampil notifikasi global (kartu kecil pojok kanan bawah).
-// Ini pasangan dari composables/useToast.js (pengganti alert/confirm). Pemasangannya
-// CUKUP SEKALI di App.vue; komponen lain tinggal manggil toast.success()/error()/info().
 import { toast } from '../composables/useToast.js'
 </script>
 
 <template>
   <Transition name="toast-slide">
     <div v-if="toast.state.visible" :class="['toast', toast.state.type]" role="status">
-      <!-- [TIM] Ikon tipe notifikasi pakai SVG garis (bukan emoji), stroke ikut warna teks. -->
       <span class="toast-icon" aria-hidden="true">
         <svg v-if="toast.state.type === 'success'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         <svg v-else-if="toast.state.type === 'error'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>

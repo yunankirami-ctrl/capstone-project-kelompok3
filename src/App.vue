@@ -1,16 +1,4 @@
 <script setup>
-// [TIM] App.vue - Komponen ROOT aplikasi: ngatur SESI login & ROUTING antar-tab.
-// Prinsip bagi kerjanya: App.vue cuma megang state lintas-halaman sama operasi database
-// yang ngefek ke data global (simpan skor, refresh leaderboard).
-// Semua tampilan udah dipecah ke komponen:
-//   Login / Register   -> form autentikasi (Supabase Auth)
-//   QuizHome           -> murid milih mapel & sesi kuis
-//   QuizPlayer         -> murid ngerjain soal + layar hasil sementara
-//   TeacherPanel       -> guru/admin bikin kuis & soal
-//   AdminPanel         -> admin ngatur role pengguna
-//   Leaderboard        -> papan peringkat
-//   ToastHub           -> notifikasi global (gantiin alert)
-
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { supabase } from './supabase/supabase.js'
 import Login from './components/Login.vue'
@@ -25,23 +13,22 @@ import { CATEGORIES } from './data/categories.js'
 import { ROLES, isStaff, isAdmin } from './data/roles.js'
 import { toast } from './composables/useToast.js'
 
-// [TIM] ===== State sesi & navigasi utama =====
-const currentUser = ref(null)   // [TIM] Baris profile user yang login (null = belum login -> tampil form auth).
-const showRegister = ref(false) // [TIM] Ganti-tampil Login/Register di area autentikasi.
-const currentTab = ref('home')  // [TIM] Tab aktif: 'home' | 'add-question' (guru/admin) | 'manage-users' (admin).
-const leaderboardKey = ref(0)   // [TIM] Kalo dinaikin -> Leaderboard fetch ulang (misal abis skor disimpen).
+// ===== State sesi & navigasi utama =====
+const currentUser = ref(null)   // Baris profile user yang login.
+const showRegister = ref(false) // Ganti-tampil Login/Register di area autentikasi.
+const currentTab = ref('home')  // Tab aktif.
+const leaderboardKey = ref(0)   // Leaderboard fetch ulang.
 
-// [TIM] ===== State alur kuis murid (kita pegang di sini biar tetep ada walau pindah tab) =====
-const selectedQuiz = ref(null)     // [TIM] Sesi kuis yang lagi/terakhir dipilih.
-const questions = ref([])          // [TIM] Daftar soal kuis yang aktif.
-const quizResult = ref(null)       // [TIM] { score, countsForLeaderboard, alreadyRecorded } hasil ngerjain.
-const loadingQuiz = ref(false)     // [TIM] Lagi fetch soal/riwayat attempt.
-const savingScore = ref(false)     // [TIM] Lagi nulis riwayat ke quiz_attempts.
-const quizPlayerKey = ref(0)       // [TIM] Kalo dinaikin -> QuizPlayer di-remount (soal di-shuffle + state reset).
-const firstAttemptFlag = ref(true) // [TIM] Penanda pengerjaan sekarang = percobaan pertama murid (buat skor resmi).
-const quizHomeRef = ref(null)      // [TIM] Referensi ke QuizHome biar bisa buka lagi kategori tadi abis keluar kuis.
+// ===== State alur kuis murid =====
+const selectedQuiz = ref(null)     // Sesi kuis yang terakhir dipilih.
+const questions = ref([])          // Daftar soal kuis yang aktif.
+const quizResult = ref(null)       // Hasil ngerjain kuis yang terakhir dilakukan.
+const loadingQuiz = ref(false)     // Fetch soal/riwayat attempt.
+const savingScore = ref(false)     // Tulis riwayat ke quiz_attempts.
+const quizPlayerKey = ref(0)       // QuizPlayer di-remount.
+const firstAttemptFlag = ref(true) // Penanda pengerjaan sekarang.
+const quizHomeRef = ref(null)      // Referensi ke QuizHome.
 
-// [TIM] Ganti tab sekalian beresin status simpan skor lama (nggak kepakai di tab lain).
 const switchTab = (tab) => {
   currentTab.value = tab
   quizResult.value = null
@@ -49,9 +36,8 @@ const switchTab = (tab) => {
   questions.value = []
 }
 
-// [TIM] ===== Autentikasi =====
+// ===== Autentikasi =====
 
-// [TIM] Dipanggil Login.vue abis Supabase Auth sukses -> simpen profile & buka beranda.
 const handleLoginSuccess = (profile) => {
   currentUser.value = profile
   quizResult.value = null
@@ -59,12 +45,10 @@ const handleLoginSuccess = (profile) => {
   questions.value = []
   showRegister.value = false
   switchTab('home')
-  // [TIM] Leaderboard dimuat ulang biar data terbaru langsung keliatan abis restore/login.
   leaderboardKey.value++
 }
 
-// [TIM] Restore sesi pas aplikasi dimuat ulang (browser refresh) — Supabase nyimpen session
-// di localStorage, tinggal ambil profile-nya berdasarkan id user aktif.
+// Restore sesi browser refresh.
 const restoreSession = async () => {
   try {
     const { data } = await supabase.auth.getSession()
@@ -77,7 +61,7 @@ const restoreSession = async () => {
       .eq('id', authUser.id)
       .single()
 
-    // [TIM] Profile belum ada (trigger belum jalan / user lama) -> paksa logout biar nggak menggantung.
+    // Profile belum ada.
     if (error || !profile) {
       toast.error('Profile pengguna tidak ditemukan. Silakan login kembali.')
       await supabase.auth.signOut()
@@ -86,14 +70,14 @@ const restoreSession = async () => {
 
     handleLoginSuccess(profile)
   } catch (err) {
-    // [TIM] Gangguan jaringan pas restore sesi — user bisa login manual sebagai cadangan.
+    // Gangguan jaringan pas restore sesi.
     console.warn('Gagal restore sesi:', err.message)
   }
 }
 
 onMounted(restoreSession)
 
-// [TIM] Logout: hapus session Supabase + reset semua state aplikasi.
+// Logout.
 const handleLogout = async () => {
   try {
     const { error } = await supabase.auth.signOut()
@@ -110,10 +94,8 @@ const handleLogout = async () => {
   }
 }
 
-// [TIM] ===== Alur kuis murid =====
+// ===== Alur kuis murid =====
 
-// [TIM] Dipanggil QuizHome pas murid neken kartu kuis:
-// cek riwayat attempt (penanda skor resmi) terus ambil soal, terakhir tampilin player.
 const startQuiz = async (quiz) => {
   selectedQuiz.value = quiz
   quizResult.value = null
@@ -123,7 +105,7 @@ const startQuiz = async (quiz) => {
   try {
     let firstAttempt = true
 
-    // [TIM] Cek apa murid pernah ngerjain quiz ini (aturan leaderboard: cuma skor PERTAMA yang resmi).
+    // Cek apa murid pernah ngerjain quiz ini.
     if (currentUser.value.role === ROLES.MURID) {
       const { data: attempts, error: attemptsError } = await supabase
         .from('quiz_attempts')
@@ -136,7 +118,7 @@ const startQuiz = async (quiz) => {
       firstAttempt = !attempts || attempts.length === 0
     }
 
-    // [TIM] Ambil soal berdasarkan quiz_id.
+    // Ambil soal berdasarkan quiz_id.
     const { data: qData, error: qError } = await supabase
       .from('questions')
       .select('*')
@@ -144,7 +126,7 @@ const startQuiz = async (quiz) => {
 
     if (qError) throw qError
 
-    // [TIM] Pengaman — kuis tanpa soal nggak boleh dimulai (biar layar player nggak rusak).
+    // Pengaman — kuis tanpa soal.
     if (!qData || qData.length === 0) {
       toast.error('Kuis ini belum memiliki soal. Hubungi guru Anda.')
       selectedQuiz.value = null
@@ -152,10 +134,10 @@ const startQuiz = async (quiz) => {
     }
 
     questions.value = shuffle(qData)
-    // [TIM] Simpen penanda attempt pertama sebelum player mulai (nanti pas retry udah bukan pertama lagi).
+    // Simpen penanda attempt pertama sebelum player mulai.
     quizResult.value = null
     firstAttemptFlag.value = firstAttempt
-    quizPlayerKey.value++ // [TIM] Remount QuizPlayer -> state soal/timer selalu fresh.
+    quizPlayerKey.value++ // Re-mount QuizPlayer.
   } catch (err) {
     toast.error('Gagal memuat kuis: ' + err.message)
     selectedQuiz.value = null
@@ -164,7 +146,7 @@ const startQuiz = async (quiz) => {
   }
 }
 
-// [TIM] Acak urutan soal biar tiap percobaan nggak selalu sama (Fisher-Yates).
+// Acak urutan soal.
 const shuffle = (arr) => {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -174,18 +156,13 @@ const shuffle = (arr) => {
   return a
 }
 
-// [TIM] Dipanggil QuizPlayer pas kuis dikumpulin: simpen riwayat ke tabel `quiz_attempts`.
-// Poin leaderboard NGGAK diupdate di sini — diurus trigger database
-// `record_first_attempt_score` (cuma nambah poin kalo attempt itu beneran yang pertama).
 const handleQuizFinish = async ({ score }) => {
   savingScore.value = true
 
-  // [TIM] Sebelum insert, tentuin dulu apa attempt ini "percobaan pertama" yang resmi.
   const isMurid = currentUser.value.role === ROLES.MURID
   const countsForLeaderboard = isMurid && firstAttemptFlag.value
 
   try {
-    // [TIM] Riwayat cuma disimpen buat murid; guru/admin cuma coba-coba (nggak dicatat).
     if (isMurid && selectedQuiz.value) {
       const { error } = await supabase.from('quiz_attempts').insert([{
         user_id: currentUser.value.id,
@@ -196,9 +173,8 @@ const handleQuizFinish = async ({ score }) => {
 
       if (error) throw error
 
-      // [TIM] Abis attempt masuk DB, attempt berikutnya udah bukan "percobaan pertama" lagi.
       firstAttemptFlag.value = false
-      leaderboardKey.value++ // [TIM] Refresh leaderboard (trigger DB udah nambah poin kalo resmi).
+      leaderboardKey.value++ // Refresh leaderboard.
     }
 
     quizResult.value = { score, countsForLeaderboard, alreadyRecorded: !countsForLeaderboard && isMurid }
@@ -210,13 +186,11 @@ const handleQuizFinish = async ({ score }) => {
   }
 }
 
-// [TIM] Tombol "Ulangi (Latihan)": muat ulang kuis yang sama (flag first-attempt ikut dicek ulang).
+// Tombol Ulangi.
 const retryQuiz = () => {
   if (selectedQuiz.value) startQuiz(selectedQuiz.value)
 }
 
-// [TIM] Balik dari player/hasil ke daftar kuis. Abis QuizHome ke-mount lagi,
-// otomatis buka lagi kategori mapel kuis tadi (bukan balik ke pilihan mapel dari nol).
 const exitQuiz = async () => {
   const categoryId = selectedQuiz.value?.category_id
   selectedQuiz.value = null
@@ -224,20 +198,17 @@ const exitQuiz = async () => {
   quizResult.value = null
 
   if (categoryId) {
-    await nextTick() // [TIM] Tunggu QuizHome ke-render ulang sebelum manggil metode reopen-nya.
+    await nextTick()
     quizHomeRef.value?.reopen(categoryId)
   }
 }
 
-// [TIM] Beresin efek samping pas aplikasi dilepas (timer toast dll).
 onUnmounted(() => toast.hide())
 </script>
 
 <template>
   <div class="app-container">
-    <!-- [TIM] Header: judul + badge user login.
-         Kelas 'auth-mode' aktif pas belum login -> judul nge-tengah biar sejajar
-         sama kartu Login/Register di desktop (nggak nyangkut di kiri lagi). -->
+    <!-- Header -->
     <header class="main-header" :class="{ 'auth-mode': !currentUser }">
       <h1>Portal Kuis Interaktif</h1>
       <div v-if="currentUser" class="user-badge">
@@ -246,7 +217,7 @@ onUnmounted(() => toast.hide())
       </div>
     </header>
 
-    <!-- [TIM] Belum login: area autentikasi (Login/Register saling bertukar) -->
+    <!-- Belum login -->
     <main v-if="!currentUser">
       <Register v-if="showRegister" @switch-to-login="showRegister = false" />
       <Login
@@ -256,7 +227,7 @@ onUnmounted(() => toast.hide())
       />
     </main>
 
-    <!-- [TIM] Sudah login -->
+    <!-- Sudah login -->
     <main v-else class="content-wrapper">
       <nav class="navbar-tabs">
         <button :class="['tab-btn', { active: currentTab === 'home' }]" @click="switchTab('home')">Beranda Kuis</button>
@@ -272,9 +243,9 @@ onUnmounted(() => toast.hide())
         >Kelola Role</button>
       </nav>
 
-      <!-- [TIM] TAB 1: Beranda & ngerjain kuis (murid) -->
+      <!-- TAB 1 -->
       <div v-if="currentTab === 'home'">
-        <!-- [TIM] Layar hasil akhir (abis skor diproses App.vue) -->
+        <!-- Layar hasil akhir -->
         <section v-if="quizResult" class="result-card">
           <h2>Ujian Selesai!</h2>
           <p class="final-score">Nilai Kamu: <span>{{ quizResult.score }}</span> / 100</p>
@@ -298,13 +269,13 @@ onUnmounted(() => toast.hide())
           </div>
         </section>
 
-        <!-- [TIM] Lagi muat soal -->
+        <!-- Lagi muat soal -->
         <div v-else-if="loadingQuiz" class="loading-state"><p>Memuat soal...</p></div>
 
-        <!-- [TIM] Status nyimpen nilai sebentar abis kuis dikumpulin -->
+        <!-- Status nyimpen nilai sebentar abis kuis dikumpulin -->
         <div v-else-if="savingScore" class="loading-state"><p>Menyimpan nilai...</p></div>
 
-        <!-- [TIM] Kuis lagi jalan -->
+        <!-- Kuis lagi jalan -->
         <QuizPlayer
           v-else-if="selectedQuiz && questions.length > 0"
           :key="quizPlayerKey"
@@ -314,30 +285,28 @@ onUnmounted(() => toast.hide())
           @exit="exitQuiz"
         />
 
-        <!-- [TIM] Milih mapel / daftar kuis -->
+        <!-- Pilih mapel / daftar kuis -->
         <QuizHome v-else ref="quizHomeRef" :categories="CATEGORIES" @select-quiz="startQuiz" />
 
-        <!-- [TIM] Leaderboard: cuma nongol di mode jelajah (bukan pas ngerjain/menyimpan) biar
-             nggak nutupin layar kuis; ditaro di level App biar nggak reload tiap pindah kategori. -->
+        <!-- Leaderboard. -->
         <div v-if="!selectedQuiz && !loadingQuiz && !savingScore" class="leaderboard-section">
           <Leaderboard :refresh-key="leaderboardKey" />
         </div>
       </div>
 
-      <!-- [TIM] TAB 2: Panel guru -->
+      <!-- TAB 2-->
       <TeacherPanel v-if="currentTab === 'add-question' && isStaff(currentUser)" :user="currentUser" :categories="CATEGORIES" />
 
-      <!-- [TIM] TAB 3: Panel admin -->
+      <!-- TAB 3 -->
       <AdminPanel v-if="currentTab === 'manage-users' && isAdmin(currentUser)" :user="currentUser" />
     </main>
 
-    <!-- [TIM] Notifikasi global, satu-satunya tempat toast dirender. -->
+    <!-- Notifikasi global. -->
     <ToastHub />
   </div>
 </template>
 
 <style scoped>
-/* [TIM] Style khusus layar hasil & state di level App (kelas umum ada di style.css global). */
 .result-card {
   background: white;
   padding: 24px;

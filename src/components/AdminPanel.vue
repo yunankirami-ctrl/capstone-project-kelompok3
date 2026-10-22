@@ -1,26 +1,18 @@
 <script setup>
-// [TIM] PANEL ADMIN - khusus ngatur ROLE pengguna (Tab "Kelola Role").
-// Fungsinya:
-//   - Nampilin daftar semua pengguna (cuma admin yang boleh baca semua profile,
-//     aturannya lewat RLS policy di Supabase).
-//   - Ganti role murid/guru/admin lewat dropdown -> update tabel `profiles`.
-// NOTE: bikin akun baru SENGAJA nggak diurus di halaman ini (itu urusan Supabase
-// Dashboard), jadi panel aku fokusin 100% ke manajemen role.
-
 import { ref, onMounted } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 import { toast } from '../composables/useToast.js'
 import { ROLE_OPTIONS, ROLES } from '../data/roles.js'
 
 const props = defineProps({
-  user: { type: Object, required: true } // [TIM] Admin yang lagi login, dipakai biar nggak turunin role diri sendiri.
+  user: { type: Object, required: true } // Admin yang lagi login, dipakai biar nggak turunin role diri sendiri pas login.
 })
 
 const allUsers = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
 
-// [TIM] Ambil daftar semua user (policy RLS "admin membaca semua profile").
+// Ambil daftar semua user.
 const fetchAllUsers = async () => {
   loading.value = true
   errorMessage.value = ''
@@ -42,7 +34,7 @@ const fetchAllUsers = async () => {
 
 onMounted(fetchAllUsers)
 
-// [TIM] Ganti role pengguna. Proteksinya: admin nggak boleh turunin role dirinya sendiri
+// Ganti role pengguna. tapi admin gabisa ganti role diri sendiri
 // biar nggak gak dikunci keluar dari panel admin tanpa sengaja.
 const updateUserRole = async (userId, newRole) => {
   if (userId === props.user.id && newRole !== ROLES.ADMIN) {
@@ -70,7 +62,7 @@ const updateUserRole = async (userId, newRole) => {
   <div class="dashboard-card admin-card">
     <h2>Kelola Role Pengguna</h2>
 
-    <!-- [TIM] Daftar Pengguna + ganti role -->
+    <!-- Daftar Pengguna + ganti role -->
     <div class="sub-panel">
       <div class="list-header">
         <h3>Daftar Pengguna</h3>
@@ -80,8 +72,7 @@ const updateUserRole = async (userId, newRole) => {
       <div v-if="loading" class="state-text">Memuat data...</div>
       <p v-else-if="errorMessage" class="state-text error">{{ errorMessage }}</p>
 
-      <!-- [TIM] Wrapper .table-scroll: di layar HP tabelnya bisa digeser horizontal,
-           bukan malah gepes/meleber keluar. Rantai v-else-if ikut dipindah ke sini. -->
+      <!-- Wrapper .table-scroll: di layar HP tabelnya bisa digeser horizontal -->
       <div v-else-if="allUsers.length > 0" class="table-scroll">
         <table class="styled-table">
         <thead>
@@ -98,7 +89,7 @@ const updateUserRole = async (userId, newRole) => {
             <td><strong>{{ u.username }}</strong></td>
             <td><span :class="['role-tag', u.role]">{{ u.role }}</span></td>
             <td>
-              <!-- [TIM] Dropdown role; nilai current di-binding biar tetep sesuai data terbaru abis fetch ulang. -->
+              <!-- Dropdown role; nilai current di-binding biar tetep sesuai data terbaru abis fetch ulang. -->
               <select :value="u.role" @change="e => updateUserRole(u.id, e.target.value)">
                 <option v-for="r in ROLE_OPTIONS" :key="r.value" :value="r.value">{{ r.label }}</option>
               </select>
@@ -114,7 +105,7 @@ const updateUserRole = async (userId, newRole) => {
 </template>
 
 <style scoped>
-/* [TIM] Style khusus panel admin; kelas form/tabel umum udah ada di style.css global. */
+/* Style khusus panel admin; kelas form/tabel umum udah ada di style.css global. */
 .list-header {
   display: flex;
   justify-content: space-between;

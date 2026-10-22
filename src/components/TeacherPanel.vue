@@ -1,46 +1,35 @@
 <script setup>
-// [TIM] PANEL GURU/ADMIN - buat kuis di sini (Tab "Buat Kuis & Soal").
-// Alurnya 2 langkah:
-//   Langkah 1: isi info kuis (mapel, judul, jumlah soal, durasi) -> insert ke tabel `quizzes`.
-//   Langkah 2: masukin soal satu-satu ke sesi kuis itu -> insert ke tabel `questions`.
-// Yang udah kita benerin dari versi lama:
-//   - Jawaban benar sekarang milih lewat dropdown (bukan ketik manual), jadi nggak mungkin
-//     beda huruf/spasi sama opsi -> skor murid akurat.
-//   - Validasi udah lengkap: opsi nggak boleh kosong/dobel, jumlah soal dibatasi 1-40.
-//   - Semua alert() udah ditukar toast (nggak blokir) dan error database diurus bener.
-
 import { ref, computed } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 import { toast } from '../composables/useToast.js'
 
 const props = defineProps({
-  user: { type: Object, required: true },      // [TIM] Guru/admin yang lagi login, disimpen di kolom created_by.
-  categories: { type: Array, required: true }  // [TIM] Daftar mapel buat dropdown.
+  user: { type: Object, required: true }, 
+  categories: { type: Array, required: true } 
 })
 
-// [TIM] State ngatur panel lagi di langkah mana ('create-quiz' | 'add-questions').
 const teacherStep = ref('create-quiz')
 
-// [TIM] Form Langkah 1 - info kuis.
+// Form Langkah 1 - info kuis.
 const newQuizCategory = ref(props.categories[0]?.id ?? 'math')
 const newQuizTitle = ref('')
 const newQuizTotalQ = ref(10)
 const newQuizDuration = ref(30)
 
-// [TIM] State Langkah 2 - input soal.
+// State Langkah 2 - input soal.
 const createdQuizId = ref(null)
 const createdQuizTitle = ref('')
 const addedQuestionsCount = ref(0)
-const submitting = ref(false) // [TIM] Biar nggak klik ganda pas nyimpen soal/kuis.
+const submitting = ref(false) 
 
 const newQuestionText = ref('')
 const newOptions = ref(['', '', '', ''])
 const newCorrectOption = ref('')
 
-// [TIM] Opsi yang udah diisi (buat dropdown jawaban benar, yang nongol cuma opsi yang nggak kosong).
+// Opsi yang udah diisi.
 const filledOptions = computed(() => newOptions.value.map((o) => o.trim()).filter(Boolean))
 
-// [TIM] Langkah 1 - simpen sesi kuis baru ke tabel `quizzes`.
+// Langkah 1 - simpan sesi kuis baru ke tabel `quizzes`.
 const handleCreateQuizSession = async () => {
   if (!newQuizTitle.value.trim()) {
     return toast.error('Judul kuis (misal: Quiz Week 1) wajib diisi!')
@@ -65,7 +54,7 @@ const handleCreateQuizSession = async () => {
 
     if (error) throw error
 
-    // [TIM] Pindihin data kuis ke state terpisah biar nggak ikut ke-reset pas form Step 1 dibersihin.
+    // Pindihin data kuis ke state terpisah biar nggak ikut ke-reset pas form Step 1 dibersihin.
     createdQuizId.value = data.id
     createdQuizTitle.value = data.title
     addedQuestionsCount.value = 0
@@ -78,7 +67,7 @@ const handleCreateQuizSession = async () => {
   }
 }
 
-// [TIM] Reset total form langkah 2 terus balik ke langkah 1.
+// Reset total form langkah 2 terus balik ke langkah 1.
 const quitAddingQuestions = () => {
   teacherStep.value = 'create-quiz'
   createdQuizId.value = null
@@ -89,7 +78,7 @@ const quitAddingQuestions = () => {
   newCorrectOption.value = ''
 }
 
-// [TIM] Langkah 2 - validasi terus simpen satu soal ke tabel `questions`.
+// Langkah 2 - validasi terus simpan satu soal ke tabel `questions`.
 const handleAddQuestionToQuiz = async () => {
   const questionText = newQuestionText.value.trim()
   const options = newOptions.value.map((o) => o.trim())
@@ -105,7 +94,7 @@ const handleAddQuestionToQuiz = async () => {
       quiz_id: createdQuizId.value,
       category_id: newQuizCategory.value,
       question_text: questionText,
-      options, // [TIM] Disimpen sebagai array JSONB sesuai skema tabel.
+      options, // Disimpan sebagai array JSONB sesuai skema tabel.
       correct_option: newCorrectOption.value
     }])
 
@@ -113,8 +102,7 @@ const handleAddQuestionToQuiz = async () => {
 
     addedQuestionsCount.value++
 
-    // [TIM] Reset cuma bagian teks & kunci; opsi A-D kita kosongin juga soalnya guru kadang
-    // pake opsi yg sama buat soal serupa, takutan kepindah dobel.
+    // Reset cuma bagian teks & kunci.
     newQuestionText.value = ''
     newOptions.value = ['', '', '', '']
     newCorrectOption.value = ''
@@ -132,29 +120,26 @@ const handleAddQuestionToQuiz = async () => {
   }
 }
 // ================= BAGIAN KELOLA & HAPUS =================
-// [TIM] Mode panel: 'create' (wizard bikin kuis) atau 'manage' (liat & hapus kuis/soal).
-// Admin juga lewat panel ini soalnya admin itu bagian dari staff (is_staff() = guru + admin).
 const panelMode = ref('create')
 const quizRows = ref([])
 const loadingManage = ref(false)
 const expandedQuizId = ref(null)
 const quizQuestions = ref([])
 const loadingQuestions = ref(false)
-const deleting = ref(false) // [TIM] Kunci biar nggak klik hapus dobel pas proses jalan.
-// [TIM] Simpan id yang lagi nunggu konfirmasi hapus (pola 2 langkah, pengganti confirm()).
+const deleting = ref(false) 
 const pendingDeleteQuiz = ref(null)
 const pendingDeleteQuestion = ref(null)
 
-// [TIM] Nama mapel buat label, dicocokin dari id kategori.
+// Nama mapel buat label, dicocokin dari id kategori.
 const categoryName = (id) => props.categories.find((c) => c.id === id)?.name ?? id
 
-// [TIM] Pindah ke mode kelola + langsung ambil daftar semua kuis.
+// Pindah ke mode kelola + langsung ambil daftar semua kuis.
 const switchToManage = () => {
   panelMode.value = 'manage'
   loadQuizList()
 }
 
-// [TIM] Ambil semua sesi kuis (policy RLS select ngebolehin staff baca penuh).
+// Ambil semua sesi kuis.
 const loadQuizList = async () => {
   loadingManage.value = true
   expandedQuizId.value = null
@@ -174,7 +159,6 @@ const loadQuizList = async () => {
   }
 }
 
-// [TIM] Buka/tutup daftar soal milik satu kuis, buat hapus satuan.
 const toggleManageQuiz = async (quizId) => {
   pendingDeleteQuestion.value = null
   if (expandedQuizId.value === quizId) {
@@ -200,7 +184,6 @@ const toggleManageQuiz = async (quizId) => {
   }
 }
 
-// [TIM] Hapus satu kuis UTUH. Soal + riwayatnya ikut kehapus otomatis (cascade di DB).
 const confirmDeleteQuiz = async (quiz) => {
   if (deleting.value) return
   deleting.value = true
@@ -222,7 +205,6 @@ const confirmDeleteQuiz = async (quiz) => {
   }
 }
 
-// [TIM] Hapus satu soal di dalem kuis yang lagi dibuka.
 const confirmDeleteQuestion = async (q) => {
   if (deleting.value) return
   deleting.value = true
@@ -245,15 +227,15 @@ const confirmDeleteQuestion = async (q) => {
   <div class="dashboard-card teacher-card">
     <h2>{{ panelMode === 'manage' ? 'Kelola & Hapus Kuis' : 'Halaman Pembuatan Kuis Baru' }}</h2>
 
-    <!-- [TIM] Switch mode: bikin baru vs kelola/hapus. Dua-duanya cuma buat staff (guru/admin). -->
+    <!-- Switch mode: bikin baru vs kelola/hapus. Dua-duanya cuma buat staff. -->
     <div class="panel-mode-switch">
       <button :class="['mode-btn', { active: panelMode === 'create' }]" @click="panelMode = 'create'">Buat Kuis Baru</button>
       <button :class="['mode-btn', { active: panelMode === 'manage' }]" @click="switchToManage">Kelola & Hapus Kuis</button>
     </div>
 
-    <!-- [TIM] MODE CREATE: wizard 2 langkah (info kuis -> input soal). -->
+    <!-- MODE CREATE: wizard 2 langkah (info kuis -> input soal). -->
     <div v-if="panelMode === 'create'">
-    <!-- [TIM] Step A: Informasi Kuis -->
+    <!-- Step A: Informasi Kuis -->
     <div v-if="teacherStep === 'create-quiz'">
       <h3>Langkah 1: Atur Informasi Kuis</h3>
       <form @submit.prevent="handleCreateQuizSession" class="form-stack">
@@ -295,7 +277,7 @@ const confirmDeleteQuestion = async (q) => {
       </form>
     </div>
 
-    <!-- [TIM] Step B: Input Soal -->
+    <!-- Step B: Input Soal -->
     <div v-else>
       <div class="quiz-creation-header">
         <h3>Langkah 2: Masukkan Soal ({{ Math.min(addedQuestionsCount + 1, newQuizTotalQ) }} dari {{ newQuizTotalQ }})</h3>
@@ -322,8 +304,7 @@ const confirmDeleteQuestion = async (q) => {
           </div>
         </div>
 
-        <!-- [TIM] Dropdown jawaban benar - milih dari opsi yang udah diketik, bukan ketik ulang,
-             biar nilainya (string) dijamin sama persis sama data soal. -->
+        <!-- Dropdown jawaban benar. -->
         <div class="input-group">
           <label>Jawaban Benar</label>
           <select v-model="newCorrectOption" required>
@@ -342,7 +323,7 @@ const confirmDeleteQuestion = async (q) => {
     </div>
     </div>
 
-    <!-- [TIM] MODE MANAGE: daftar kuis -> hapus kuis utuh / buka buat hapus soal satuan. -->
+    <!-- MODE MANAGE: daftar kuis -> hapus kuis utuh / buka buat hapus soal satuan. -->
     <div v-else class="manage-section">
       <div class="manage-toolbar">
         <button class="btn-nav" @click="loadQuizList" :disabled="loadingManage"><span v-if="loadingManage" class="btn-spinner" aria-hidden="true"></span>{{ loadingManage ? 'Memuat...' : 'Muat Ulang' }}</button>
@@ -360,7 +341,7 @@ const confirmDeleteQuestion = async (q) => {
             </div>
             <div class="manage-actions">
               <button class="btn-nav" @click="toggleManageQuiz(quiz.id)">{{ expandedQuizId === quiz.id ? 'Tutup Soal' : 'Lihat & Hapus Soal' }}</button>
-              <!-- [TIM] Konfirmasi 2 langkah: klik 'Hapus Kuis' dulu, baru muncul 'Yakin'. -->
+              <!-- Konfirmasi 2 langkah: klik 'Hapus Kuis' -->
               <template v-if="pendingDeleteQuiz === quiz.id">
                 <button class="btn-danger" @click="confirmDeleteQuiz(quiz)" :disabled="deleting">Yakin, Hapus Kuis</button>
                 <button class="btn-nav" @click="pendingDeleteQuiz = null">Batal</button>
@@ -369,7 +350,7 @@ const confirmDeleteQuestion = async (q) => {
             </div>
           </div>
 
-          <!-- [TIM] Soal satuan: nongol pas kuis ini dibuka. Tiap baris punya hapus sendiri. -->
+          <!-- Soal satuan: nongol pas kuis ini dibuka. Tiap baris punya hapus sendiri. -->
           <div v-if="expandedQuizId === quiz.id" class="manage-questions">
             <div v-if="loadingQuestions" class="manage-state"><p>Memuat soal...</p></div>
             <div v-else-if="quizQuestions.length === 0" class="manage-state empty"><p>Belum ada soal di kuis ini.</p></div>
@@ -391,14 +372,14 @@ const confirmDeleteQuestion = async (q) => {
 </template>
 
 <style scoped>
-/* [TIM] Baris tombol aksi di langkah 2 (simpan + batal) biar sejajar. */
+/* Baris tombol aksi di langkah 2 biar sejajar. */
 .teacher-step-actions {
   display: flex;
   gap: 12px;
   align-items: center;
 }
 
-/* [TIM] Switch mode Buat/Kelola di panel guru. */
+/* Switch mode Buat/Kelola di panel guru. */
 .panel-mode-switch {
   display: flex;
   gap: 8px;
@@ -420,7 +401,7 @@ const confirmDeleteQuestion = async (q) => {
   color: #4f46e5;
 }
 
-/* [TIM] Section kelola & hapus kuis. */
+/* Section kelola & hapus kuis. */
 .manage-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -500,7 +481,7 @@ const confirmDeleteQuestion = async (q) => {
   margin: 0;
 }
 
-/* [TIM] Tombol bahaya buat aksi hapus (destruktif). */
+/* Tombol bahaya buat aksi hapus (destruktif). */
 .btn-danger {
   border: none;
   background: #ef4444;
