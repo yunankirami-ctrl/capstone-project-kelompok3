@@ -1,35 +1,50 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { supabase } from '../supabase/supabase.js'
+
+const props = defineProps({
+  refreshKey: { type: Number, default: 0 }
+})
 
 const leaderboardData = ref([])
 const loading = ref(true)
+const errorMessage = ref('')
 
-onMounted(async () => {
+// Ambil data lewat RPC. Jalan pas komponen pertama muncul & tiap refreshKey berubah.
+const fetchLeaderboard = async () => {
+  loading.value = true
+  errorMessage.value = ''
+
   try {
-    // Mengambil data profil/skor siswa diurutkan dari poin tertinggi
-    const { data, error } = await supabase
-      .from('profiles') // Sesuaikan dengan nama tabel profil/skor Anda
-      .select('username, points')
-      .order('points', { ascending: false })
-      .limit(10) // Batasi 10 besar
+    const { data, error } = await supabase.rpc('get_leaderboard')
 
     if (error) throw error
     leaderboardData.value = data || []
   } catch (err) {
-    console.error('Gagal memuat leaderboard:', err.message)
+    errorMessage.value = 'Gagal memuat leaderboard: ' + err.message
+    leaderboardData.value = []
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(fetchLeaderboard)
+
+// leaderboard auto-refresh.
+watch(() => props.refreshKey, fetchLeaderboard)
 </script>
 
 <template>
   <div class="leaderboard-card">
-    <h2>🏆 Papan Peringkat (Leaderboard)</h2>
-    
-    <div v-if="loading">Memuat peringkat...</div>
-    
+    <h2>Papan Peringkat</h2>
+
+    <div v-if="loading" class="state-text">Memuat peringkat...</div>
+
+    <div v-else-if="errorMessage" class="state-text error">
+      <p>{{ errorMessage }}</p>
+      <button class="retry-btn" @click="fetchLeaderboard">Coba Lagi</button>
+    </div>
+
     <ul v-else-if="leaderboardData.length > 0" class="rank-list">
       <li v-for="(user, index) in leaderboardData" :key="index" class="rank-item">
         <span class="rank-number" :class="'top-' + (index + 1)">{{ index + 1 }}</span>
@@ -38,7 +53,7 @@ onMounted(async () => {
       </li>
     </ul>
 
-    <p v-else>Belum ada data peringkat.</p>
+    <p v-else class="state-text">Belum ada data peringkat. Jadilah murid pertama yang mengerjakan kuis!</p>
   </div>
 </template>
 
@@ -87,5 +102,23 @@ h2 {
 .points {
   font-weight: 600;
   color: #4f46e5;
+}
+.state-text {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  padding: 8px 0;
+}
+.state-text.error {
+  color: #ef4444;
+}
+.retry-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
 }
 </style>
