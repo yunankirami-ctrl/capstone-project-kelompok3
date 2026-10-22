@@ -9,7 +9,24 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap; /* [TIM] RESPONSIVE: judul + badge boleh turun baris biar nggak desak-desakan di HP */
+  gap: 12px;
   margin-bottom: 25px;
+}
+
+/* [TIM] Ukuran judul ikut natar di layar kecil (aturannya di blok RESPONSIVE paling bawah) */
+.main-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+/* [TIM] MODE AUTENTIKASI (Login/Register): nggak ada badge user, jadi judul kita
+   tengahin biar sejajar & rapi di atas kartu auth yang juga di tengah (terutama desktop).
+   Begitu login, kelas ini ilang -> balik lagi jadi space-between normal. */
+.main-header.auth-mode {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
 .user-badge {
@@ -270,6 +287,7 @@
 .navbar-tabs {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap; /* [TIM] RESPONSIVE: tab admin/guru (3 tombol) nggak lagi meluber keluar layar HP */
   background: white;
   padding: 10px 16px;
   border-radius: 12px;
@@ -443,6 +461,7 @@
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap; /* [TIM] RESPONSIVE: tombol Ulangi/Kembali nimpa rapi kalo layar sempit */
   margin-top: 20px;
 }
 
@@ -454,4 +473,157 @@
   border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
+}
+
+/* ============================================================
+   [TIM] AREA AUTENTIKASI (Login & Register)
+   Style di bawah ini DIPAKAI BERSAMA oleh Login.vue dan Register.vue.
+   Sengaja ditaruh di sini (global) biar kedua halaman otomatis identik dan
+   nggak bisa 'bergeser' lagi. Kalau mau ubah tampilan form auth, ubah di sini
+   SAJA - jangan duplikat ke masing-masing komponen.
+   ============================================================ */
+.auth-card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  max-width: 400px;
+  margin: 40px auto;
+}
+.auth-card h2 {
+  text-align: center;
+  font-size: 1.4rem;
+  margin: 0 0 8px;
+  color: #1e293b;
+}
+.subtitle {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+.form-group label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #374151;
+}
+.form-group input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+.error-text {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin: 0;
+}
+.success-text {
+  color: #22c55e;
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: center;
+}
+.switch-text {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+.text-link {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+}
+.text-link:hover {
+  text-decoration: underline;
+}
+.btn-primary {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 10px;
+}
+.btn-primary:hover {
+  background: #4338ca;
+}
+.btn-primary:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   [TIM] RESPONSIVE (MOBILE + DESKTOP)
+   Cara bacanya: style dasar di atas itu 'desktop-friendly', nah blok
+   @media di bawah ini yang nyesuaiin biar tetap enak di layar kecil (HP).
+   Kita pake max-width: artinya 'cuma jalan kalo layar di bawah ukuran ini',
+   jadi layout desktop aslinya nggak ikut berubah. Semua breakpoint dikumpul
+   di sini biar gampang dirawat bareng-bareng.
+   ============================================================ */
+
+/* Wrapper scroll khusus tabel (dipakai AdminPanel) biar kolom nggak numpuk/meleber */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.styled-table {
+  min-width: 460px; /* [TIM] keep columns readable; kalau sempit, .table-scroll yang geser */
+}
+
+/* Tablet ke bawah */
+@media (max-width: 640px) {
+  .app-container { padding: 14px; }
+
+  /* Header jadi vertikal biar badge user punya ruang sendiri */
+  .main-header { flex-direction: column; align-items: flex-start; }
+  .main-header h1 { font-size: 1.3rem; }
+  .user-badge { width: 100%; justify-content: space-between; }
+
+  /* Tab nav lebih ramping + tombol melebar ngisi baris */
+  .navbar-tabs { padding: 8px 10px; gap: 8px; }
+  .tab-btn { flex: 1 1 auto; text-align: center; padding: 8px 12px; font-size: 0.88rem; }
+
+  /* Kartu-kartu kasih jarak dalam lebih kecil */
+  .dashboard-card { padding: 18px; }
+  .auth-card { padding: 22px; margin: 16px auto; }
+
+  /* Footer navigasi kuis boleh wrap, tombol jadi melebar */
+  .quiz-nav-footer { flex-wrap: wrap; }
+  .quiz-nav-footer .btn-nav,
+  .quiz-nav-footer .btn-finish { flex: 1 1 45%; }
+
+  /* Aksi di layar hasil ditumpuk + full width */
+  .result-actions { flex-direction: column; }
+  .result-actions .btn-restart,
+  .result-actions .btn-back-home { width: 100%; }
+}
+
+/* HP kecil: baris 2 kolom jadi 1 kolom biar input nggak sempit */
+@media (max-width: 480px) {
+  .form-row,
+  .options-grid-inputs { grid-template-columns: 1fr; }
 }

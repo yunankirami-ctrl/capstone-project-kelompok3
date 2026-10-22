@@ -1,8 +1,15 @@
 <script setup>
+// [TIM] HALAMAN REGISTER (khusus murid baru).
+// Rekan-rekan, daftar di sini pakai Supabase Auth signUp(). Alurnya:
+//   signUp(email, password, metadata{username, full_name}) -> Supabase bikin user di auth.users
+//   -> trigger database `handle_new_user` OTOMATIS bikin baris `profiles` (role 'murid', points 0).
+// Jadi KITA NGGAK perlu insert manual ke profiles dari sini, cukup kirim metadata lewat options.
+// CATATAN KEAMANAN: role guru/admin SENGAJA tidak bisa didaftarkan dari halaman ini.
+// Akun guru/admin dibuat manual oleh admin lewat Supabase Dashboard (lihat SUPABASE_SETUP.md).
+
 import { ref } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
-//note: Form register
 const username = ref('')
 const fullName = ref('')
 const email = ref('')
@@ -14,32 +21,50 @@ const successMessage = ref('')
 const emit = defineEmits(['switch-to-login'])
 
 const handleRegister = async () => {
-  loading.value = true
   errorMessage.value = ''
   successMessage.value = ''
 
-  try {
-    if (password.value.length < 6) {
-      throw new Error('Password minimal 6 karakter.')
-    }
+  // [TIM] Validasi kita lakukan DULUAN sebelum nelepon Supabase, biar error langsung
+  // muncul cepat & jelas tanpa harus nunggu response server.
+  if (!username.value.trim()) {
+    errorMessage.value = 'Username tidak boleh kosong.'
+    return
+  }
+  if (!email.value.includes('@')) {
+    errorMessage.value = 'Format email tidak valid (harus mengandung @).'
+    return
+  }
+  if (password.value.length < 6) {
+    // [TIM] Inget: 6 karakter itu minimum bawaan Supabase Auth. Kurang dari ini pasti ditolak.
+    errorMessage.value = 'Password minimal 6 karakter.'
+    return
+  }
 
-    //note: Password dikirim ke Supabase Auth
+  loading.value = true
+
+  try {
+    // [TIM] Password dikirim ke Supabase Auth (di-hash di server), BUKAN kita simpan
+    // plaintext di tabel. Aman ya.
     const { error } = await supabase.auth.signUp({
-      email: email.value,
+      email: email.value.trim(),
       password: password.value,
-      //note: row profiles otomatis.
+      // [TIM] Metadata di bawah ini dibaca trigger `handle_new_user` di database buat
+      // ngisi kolom username & full_name pada tabel profiles. Kalau full_name dikosongkan,
+      // kita fallback ke username biar tetap ada namanya.
       options: {
         data: {
-          username: username.value,
-          full_name: fullName.value || username.value
+          username: username.value.trim(),
+          full_name: fullName.value.trim() || username.value.trim()
         }
       }
     })
 
     if (error) throw error
 
-    successMessage.value = 'Pendaftaran berhasil! Silakan periksa email Anda, lalu masuk.'
+    successMessage.value = 'Pendaftaran berhasil! Kamu bisa langsung Masuk (login) sekarang.'
   } catch (err) {
+    // [TIM] Pesan dari Supabase sudah deskriptif (email udah terdaftar, password lemah, dsb),
+    // jadi tinggal kita tampilkan apa adanya.
     errorMessage.value = err.message
   } finally {
     loading.value = false
@@ -48,123 +73,68 @@ const handleRegister = async () => {
 </script>
 
 <template>
-  <div class="register-card">
-    <h2>📝 Daftar Akun Siswa Baru</h2>
-    <form @submit.prevent="handleRegister">
+  <!-- [TIM] Desain SENGAJA disamakan dengan Login: pakai class auth-card/auth-form/
+       form-group/btn-primary yang style-nya sudah global di style.css.
+       Tambahannya cuma field username + nama lengkap dan pesan sukses. -->
+  <div class="auth-card">
+    <h2>Daftar Akun Siswa Baru</h2>
+    <p class="subtitle">Isi data di bawah untuk membuat akun</p>
+
+    <form @submit.prevent="handleRegister" class="auth-form">
       <div class="form-group">
-        <label>Username:</label>
-        <input type="text" v-model="username" placeholder="Nama pengguna" required />
-      </div>
-      <div class="form-group">
-        <label>Nama lengkap:</label>
-        <input type="text" v-model="fullName" placeholder="Nama lengkap" />
-      </div>
-      <div class="form-group">
-        <label>Email:</label>
-        <input type="email" v-model="email" placeholder="nama@email.com" required />
+        <label>Username</label>
+        <input
+          type="text"
+          v-model="username"
+          placeholder="Nama pengguna"
+          maxlength="30"
+          required
+        />
       </div>
 
       <div class="form-group">
-        <label>Password:</label>
-        <input type="password" v-model="password" placeholder="••••••••" required />
+        <label>Nama Lengkap</label>
+        <input
+          type="text"
+          v-model="fullName"
+          placeholder="Nama lengkap (opsional)"
+          maxlength="60"
+        />
       </div>
 
-      <button type="submit" class="register-btn" :disabled="loading">
+      <div class="form-group">
+        <label>Email</label>
+        <input
+          type="email"
+          v-model="email"
+          placeholder="nama@email.com"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label>Password (minimal 6 karakter)</label>
+        <input
+          type="password"
+          v-model="password"
+          placeholder="••••••••"
+          minlength="6"
+          required
+        />
+      </div>
+
+      <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+      <p v-if="successMessage" class="success-text">{{ successMessage }}</p>
+
+      <button type="submit" class="btn-primary" :disabled="loading">
         {{ loading ? 'Mendaftarkan...' : 'Daftar' }}
       </button>
     </form>
 
-    <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
-    <p v-if="successMessage" class="success-msg">{{ successMessage }}</p>
-
+    <!-- [TIM] Tautan balik ke halaman Login. -->
     <p class="switch-text">
-      Sudah punya akun? 
+      Sudah punya akun?
       <button type="button" @click="emit('switch-to-login')" class="text-link">Masuk di sini</button>
     </p>
   </div>
 </template>
-
-<style scoped>
-.register-card {
-  background: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  max-width: 400px;
-  margin: 20px auto;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-h2 {
-  text-align: center;
-  font-size: 1.2rem;
-  margin-bottom: 20px;
-  color: #1e293b;
-}
-.form-group {
-  margin-bottom: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #475569;
-}
-input {
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 1rem;
-}
-input:focus {
-  outline: none;
-  border-color: #4f46e5;
-}
-.register-btn {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
-  width: 100%;
-  font-weight: 600;
-  margin-top: 10px;
-}
-.register-btn:disabled {
-  background: #cbd5e1;
-  cursor: not-allowed;
-}
-.error-msg {
-  color: #ef4444;
-  font-size: 0.9rem;
-  margin-top: 10px;
-  text-align: center;
-}
-.success-msg {
-  color: #22c55e;
-  font-size: 0.9rem;
-  margin-top: 10px;
-  text-align: center;
-}
-.switch-text {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 0.9rem;
-  color: #64748b;
-}
-.text-link {
-  background: none;
-  border: none;
-  color: #4f46e5;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  padding: 0;
-}
-.text-link:hover {
-  text-decoration: underline;
-}
-</style>

@@ -1,322 +1,253 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+// [TIM] App.vue - Komponen ROOT aplikasi: ngatur SESI login & ROUTING antar-tab.
+// Prinsip bagi kerjanya: App.vue cuma megang state lintas-halaman sama operasi database
+// yang ngefek ke data global (simpan skor, refresh leaderboard).
+// Semua tampilan udah dipecah ke komponen:
+//   Login / Register   -> form autentikasi (Supabase Auth)
+//   QuizHome           -> murid milih mapel & sesi kuis
+//   QuizPlayer         -> murid ngerjain soal + layar hasil sementara
+//   TeacherPanel       -> guru/admin bikin kuis & soal
+//   AdminPanel         -> admin ngatur role pengguna
+//   Leaderboard        -> papan peringkat
+//   ToastHub           -> notifikasi global (gantiin alert)
+
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { supabase } from './supabase/supabase.js'
 import Login from './components/Login.vue'
-//note: Register ditampilkan bergantian dengan Login pada area autentikasi.
 import Register from './components/Register.vue'
 import Leaderboard from './components/Leaderboard.vue'
+import QuizHome from './components/QuizHome.vue'
+import QuizPlayer from './components/QuizPlayer.vue'
+import TeacherPanel from './components/TeacherPanel.vue'
+import AdminPanel from './components/AdminPanel.vue'
+import ToastHub from './components/ToastHub.vue'
+import { CATEGORIES } from './data/categories.js'
+import { ROLES, isStaff, isAdmin } from './data/roles.js'
+import { toast } from './composables/useToast.js'
 
-// Sesi User
-const currentUser = ref(null)
-//note: Cek form Login atau Register
-const showRegister = ref(false)
-const currentTab = ref('home')
+// [TIM] ===== State sesi & navigasi utama =====
+const currentUser = ref(null)   // [TIM] Baris profile user yang login (null = belum login -> tampil form auth).
+const showRegister = ref(false) // [TIM] Ganti-tampil Login/Register di area autentikasi.
+const currentTab = ref('home')  // [TIM] Tab aktif: 'home' | 'add-question' (guru/admin) | 'manage-users' (admin).
+const leaderboardKey = ref(0)   // [TIM] Kalo dinaikin -> Leaderboard fetch ulang (misal abis skor disimpen).
 
-// Kategori Mapel
-const categories = ref([
-  { id: 'math', name: 'Matematika', icon: '🔢', color: '#4F46E5' },
-  { id: 'science', name: 'IPA (Sains)', icon: '🔬', color: '#10B981' },
-  { id: 'indo', name: 'Bahasa Indonesia', icon: '📖', color: '#F59E0B' },
-  { id: 'english', name: 'Bahasa Inggris', icon: '🔤', color: '#EC4899' }
-])
+// [TIM] ===== State alur kuis murid (kita pegang di sini biar tetep ada walau pindah tab) =====
+const selectedQuiz = ref(null)     // [TIM] Sesi kuis yang lagi/terakhir dipilih.
+const questions = ref([])          // [TIM] Daftar soal kuis yang aktif.
+const quizResult = ref(null)       // [TIM] { score, countsForLeaderboard, alreadyRecorded } hasil ngerjain.
+const loadingQuiz = ref(false)     // [TIM] Lagi fetch soal/riwayat attempt.
+const savingScore = ref(false)     // [TIM] Lagi nulis riwayat ke quiz_attempts.
+const quizPlayerKey = ref(0)       // [TIM] Kalo dinaikin -> QuizPlayer di-remount (soal di-shuffle + state reset).
+const firstAttemptFlag = ref(true) // [TIM] Penanda pengerjaan sekarang = percobaan pertama murid (buat skor resmi).
+const quizHomeRef = ref(null)      // [TIM] Referensi ke QuizHome biar bisa buka lagi kategori tadi abis keluar kuis.
 
-// Navigasi Alur Murid
-const selectedCategory = ref(null)   // Step 1: Pilih Mapel
-const quizList = ref([])             // Daftar Quiz (misal: Quiz Week 1)
-const selectedQuiz = ref(null)       // Step 2: Pilih Quiz spesifik
-const questions = ref([])
-const currentIndex = ref(0)
-const userAnswers = ref({}) 
-const quizFinished = ref(false)
-const finalScore = ref(0)
-const loading = ref(false)
-const isFirstAttempt = ref(true)     // Menandai apakah ini percobaan pertama
-
-// Timer State
-const timeLeft = ref(0) 
-let timerInterval = null
-
-// Form Guru: Pembuatan Sesi Quiz Baru
-const teacherStep = ref('create-quiz') // 'create-quiz' atau 'add-questions'
-const newQuizCategory = ref('math')
-const newQuizTitle = ref('')
-const newQuizTotalQ = ref(10)
-const newQuizDuration = ref(30)
-const createdQuizId = ref(null)
-const addedQuestionsCount = ref(0)
-
-// Form Input Soal Satuan
-const newQuestionText = ref('')
-const newOptions = ref(['', '', '', ''])
-const newCorrectOption = ref('')
-
-// Management Users (Admin)
-const allUsers = ref([])
-const newUsername = ref('')
-const newPassword = ref('')
-const newFullName = ref('')
-const newAccountRole = ref('murid')
-
-// Login Success
-const handleLoginSuccess = async (userData) => {
-  currentUser.value = userData
-  currentTab.value = 'home'
-  if (userData.role === 'admin') fetchAllUsers()
+// [TIM] Ganti tab sekalian beresin status simpan skor lama (nggak kepakai di tab lain).
+const switchTab = (tab) => {
+  currentTab.value = tab
+  quizResult.value = null
+  selectedQuiz.value = null
+  questions.value = []
 }
 
-//note: Restore session saat aplikasi dimuat ulang, jika user sudah login sebelumnya.
+// [TIM] ===== Autentikasi =====
+
+// [TIM] Dipanggil Login.vue abis Supabase Auth sukses -> simpen profile & buka beranda.
+const handleLoginSuccess = (profile) => {
+  currentUser.value = profile
+  quizResult.value = null
+  selectedQuiz.value = null
+  questions.value = []
+  showRegister.value = false
+  switchTab('home')
+  // [TIM] Leaderboard dimuat ulang biar data terbaru langsung keliatan abis restore/login.
+  leaderboardKey.value++
+}
+
+// [TIM] Restore sesi pas aplikasi dimuat ulang (browser refresh) — Supabase nyimpen session
+// di localStorage, tinggal ambil profile-nya berdasarkan id user aktif.
 const restoreSession = async () => {
-  const { data } = await supabase.auth.getSession()
-  if (!data.session?.user) return
+  try {
+    const { data } = await supabase.auth.getSession()
+    const authUser = data.session?.user
+    if (!authUser) return
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', data.session.user.id)
-    .single()
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
 
-  if (profile) handleLoginSuccess(profile)
+    // [TIM] Profile belum ada (trigger belum jalan / user lama) -> paksa logout biar nggak menggantung.
+    if (error || !profile) {
+      toast.error('Profile pengguna tidak ditemukan. Silakan login kembali.')
+      await supabase.auth.signOut()
+      return
+    }
+
+    handleLoginSuccess(profile)
+  } catch (err) {
+    // [TIM] Gangguan jaringan pas restore sesi — user bisa login manual sebagai cadangan.
+    console.warn('Gagal restore sesi:', err.message)
+  }
 }
 
 onMounted(restoreSession)
 
-const fetchAllUsers = async () => {
-  const { data } = await supabase.from('profiles').select('*')
-  allUsers.value = data || []
-}
-
-// Admin: Buat Akun
-const handleCreateUser = async () => {
-  if (!newUsername.value || !newPassword.value) return alert('Username & Password wajib diisi!')
-  
-  const randomUuid = crypto.randomUUID()
-  const { error } = await supabase.from('profiles').insert([{
-    id: randomUuid,
-    username: newUsername.value,
-    password: newPassword.value,
-    full_name: newFullName.value || newUsername.value,
-    role: newAccountRole.value
-  }])
-
-  if (!error) {
-    alert('Akun berhasil dibuat!')
-    newUsername.value = ''
-    newPassword.value = ''
-    newFullName.value = ''
-    fetchAllUsers()
-  } else {
-    alert('Gagal: ' + error.message)
+// [TIM] Logout: hapus session Supabase + reset semua state aplikasi.
+const handleLogout = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (err) {
+    toast.error('Gagal keluar: ' + err.message)
+  } finally {
+    currentUser.value = null
+    showRegister.value = false
+    currentTab.value = 'home'
+    quizResult.value = null
+    selectedQuiz.value = null
+    questions.value = []
   }
 }
 
-const updateUserRole = async (userId, newRole) => {
-  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
-  if (!error) { alert('Role diperbarui!'); fetchAllUsers(); }
-}
+// [TIM] ===== Alur kuis murid =====
 
-// Guru Step 1: Buat Sesi Quiz (Judul, Jumlah Soal, Durasi)
-const handleCreateQuizSession = async () => {
-  if (!newQuizTitle.value) return alert('Judul kuis (misal: Quiz Week 1) wajib diisi!')
-
-  const { data, error } = await supabase.from('quizzes').insert([{
-    category_id: newQuizCategory.value,
-    title: newQuizTitle.value,
-    total_questions: newQuizTotalQ.value,
-    duration_minutes: newQuizDuration.value
-  }]).select().single()
-
-  if (error) {
-    return alert('Gagal membuat sesi kuis: ' + error.message)
-  }
-
-  createdQuizId.value = data.id
-  addedQuestionsCount.value = 0
-  teacherStep.value = 'add-questions'
-  alert(`Sesi "${newQuizTitle.value}" berhasil dibuat! Silakan masukkan ${newQuizTotalQ.value} soal di bawah ini.`)
-}
-
-// Guru Step 2: Masukkan Soal satu per satu ke Sesi Quiz
-const handleAddQuestionToQuiz = async () => {
-  if (!newQuestionText.value || !newCorrectOption.value) return alert('Lengkapi data soal!')
-
-  const { error } = await supabase.from('questions').insert([{
-    quiz_id: createdQuizId.value,
-    category_id: newQuizCategory.value,
-    question_text: newQuestionText.value,
-    options: newOptions.value,
-    correct_option: newCorrectOption.value
-  }])
-
-  if (!error) {
-    addedQuestionsCount.value++
-    newQuestionText.value = ''
-    newOptions.value = ['', '', '', '']
-    newCorrectOption.value = ''
-
-    if (addedQuestionsCount.value >= newQuizTotalQ.value) {
-      alert('Semua soal untuk kuis ini telah selesai dimasukkan!')
-      teacherStep.value = 'create-quiz'
-      newQuizTitle.value = ''
-      createdQuizId.value = null
-    } else {
-      alert(`Soal berhasil disimpan! Masukkan soal berikutnya (${addedQuestionsCount.value}/${newQuizTotalQ.value})`)
-    }
-  } else {
-    alert('Gagal tambah soal: ' + error.message)
-  }
-}
-
-// Murid: Pilih Mapel -> Muncul Daftar Quiz (Quiz Week 1, dll)
-const selectCategory = async (category) => {
-  selectedCategory.value = category
-  loading.value = true
-
-  const { data } = await supabase
-    .from('quizzes')
-    .select('*')
-    .eq('category_id', category.id)
-
-  quizList.value = data || []
-  loading.value = false
-}
-
-// Murid: Pilih Quiz Spesifik untuk Memulai Ujian
+// [TIM] Dipanggil QuizHome pas murid neken kartu kuis:
+// cek riwayat attempt (penanda skor resmi) terus ambil soal, terakhir tampilin player.
 const startQuiz = async (quiz) => {
   selectedQuiz.value = quiz
-  loading.value = true
+  quizResult.value = null
+  questions.value = []
+  loadingQuiz.value = true
 
-  // Cek apakah murid sudah pernah mengerjakan quiz ini sebelumnya (untuk aturan Leaderboard)
-  if (currentUser.value && currentUser.value.role === 'murid') {
-    const { data: attempts } = await supabase
-      .from('quiz_attempts')
+  try {
+    let firstAttempt = true
+
+    // [TIM] Cek apa murid pernah ngerjain quiz ini (aturan leaderboard: cuma skor PERTAMA yang resmi).
+    if (currentUser.value.role === ROLES.MURID) {
+      const { data: attempts, error: attemptsError } = await supabase
+        .from('quiz_attempts')
+        .select('id')
+        .eq('user_id', currentUser.value.id)
+        .eq('quiz_id', quiz.id)
+        .limit(1)
+
+      if (attemptsError) throw attemptsError
+      firstAttempt = !attempts || attempts.length === 0
+    }
+
+    // [TIM] Ambil soal berdasarkan quiz_id.
+    const { data: qData, error: qError } = await supabase
+      .from('questions')
       .select('*')
-      .eq('user_id', currentUser.value.id)
       .eq('quiz_id', quiz.id)
 
-    isFirstAttempt.value = (!attempts || attempts.length === 0)
-  } else {
-    isFirstAttempt.value = true
-  }
+    if (qError) throw qError
 
-  // Ambil soal berdasarkan quiz_id
-  const { data: qData } = await supabase
-    .from('questions')
-    .select('*')
-    .eq('quiz_id', quiz.id)
-
-  questions.value = qData || []
-  timeLeft.value = quiz.duration_minutes * 60
-  startTimer()
-
-  currentIndex.value = 0
-  userAnswers.value = {}
-  quizFinished.value = false
-  loading.value = false
-}
-
-// Timer Countdown
-const startTimer = () => {
-  clearInterval(timerInterval)
-  timerInterval = setInterval(() => {
-    if (timeLeft.value > 0) {
-      timeLeft.value--
-    } else {
-      clearInterval(timerInterval)
-      alert('Waktu habis!')
-      finishQuiz()
+    // [TIM] Pengaman — kuis tanpa soal nggak boleh dimulai (biar layar player nggak rusak).
+    if (!qData || qData.length === 0) {
+      toast.error('Kuis ini belum memiliki soal. Hubungi guru Anda.')
+      selectedQuiz.value = null
+      return
     }
-  }, 1000)
-}
 
-const formatTime = (seconds) => {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
-
-// Navigasi Soal
-const selectAnswerForCurrent = (opt) => {
-  userAnswers.value[currentIndex.value] = opt
-}
-
-const prevQuestion = () => {
-  if (currentIndex.value > 0) currentIndex.value--
-}
-
-const nextQuestion = () => {
-  if (currentIndex.value < questions.value.length - 1) {
-    currentIndex.value++
+    questions.value = shuffle(qData)
+    // [TIM] Simpen penanda attempt pertama sebelum player mulai (nanti pas retry udah bukan pertama lagi).
+    quizResult.value = null
+    firstAttemptFlag.value = firstAttempt
+    quizPlayerKey.value++ // [TIM] Remount QuizPlayer -> state soal/timer selalu fresh.
+  } catch (err) {
+    toast.error('Gagal memuat kuis: ' + err.message)
+    selectedQuiz.value = null
+  } finally {
+    loadingQuiz.value = false
   }
 }
 
-// Tombol Selesai / Finish Ujian
-const finishQuiz = async () => {
-  clearInterval(timerInterval)
-  
-  let correctCount = 0
-  questions.value.forEach((q, idx) => {
-    if (userAnswers.value[idx] === q.correct_option) {
-      correctCount++
+// [TIM] Acak urutan soal biar tiap percobaan nggak selalu sama (Fisher-Yates).
+const shuffle = (arr) => {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// [TIM] Dipanggil QuizPlayer pas kuis dikumpulin: simpen riwayat ke tabel `quiz_attempts`.
+// Poin leaderboard NGGAK diupdate di sini — diurus trigger database
+// `record_first_attempt_score` (cuma nambah poin kalo attempt itu beneran yang pertama).
+const handleQuizFinish = async ({ score }) => {
+  savingScore.value = true
+
+  // [TIM] Sebelum insert, tentuin dulu apa attempt ini "percobaan pertama" yang resmi.
+  const isMurid = currentUser.value.role === ROLES.MURID
+  const countsForLeaderboard = isMurid && firstAttemptFlag.value
+
+  try {
+    // [TIM] Riwayat cuma disimpen buat murid; guru/admin cuma coba-coba (nggak dicatat).
+    if (isMurid && selectedQuiz.value) {
+      const { error } = await supabase.from('quiz_attempts').insert([{
+        user_id: currentUser.value.id,
+        quiz_id: selectedQuiz.value.id,
+        category_id: selectedQuiz.value.category_id,
+        score
+      }])
+
+      if (error) throw error
+
+      // [TIM] Abis attempt masuk DB, attempt berikutnya udah bukan "percobaan pertama" lagi.
+      firstAttemptFlag.value = false
+      leaderboardKey.value++ // [TIM] Refresh leaderboard (trigger DB udah nambah poin kalo resmi).
     }
-  })
 
-  // Hitung nilai proporsional maksimal 100
-  const totalQ = questions.value.length
-  finalScore.value = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0
-  quizFinished.value = true
-
-  // SIMPAN KE DATABASE:
-  // Nilai disimpan sebagai riwayat latihan, TAPI Leaderboard HANYA mencatat jika ini percobaan pertama (isFirstAttempt)
-  if (currentUser.value && currentUser.value.role === 'murid') {
-    await supabase.from('quiz_attempts').insert([{
-      user_id: currentUser.value.id,
-      quiz_id: selectedQuiz.value.id,
-      category_id: selectedCategory.value.id,
-      score: finalScore.value
-    }])
+    quizResult.value = { score, countsForLeaderboard, alreadyRecorded: !countsForLeaderboard && isMurid }
+  } catch (err) {
+    toast.error('Nilai kamu (' + score + '/100) gagal disimpan: ' + err.message)
+    quizResult.value = { score, countsForLeaderboard: false, alreadyRecorded: true, saveFailed: true }
+  } finally {
+    savingScore.value = false
   }
 }
 
+// [TIM] Tombol "Ulangi (Latihan)": muat ulang kuis yang sama (flag first-attempt ikut dicek ulang).
 const retryQuiz = () => {
-  startQuiz(selectedQuiz.value)
+  if (selectedQuiz.value) startQuiz(selectedQuiz.value)
 }
 
-const resetNavigation = () => {
-  clearInterval(timerInterval)
-  selectedCategory.value = null
-  quizList.value = []
+// [TIM] Balik dari player/hasil ke daftar kuis. Abis QuizHome ke-mount lagi,
+// otomatis buka lagi kategori mapel kuis tadi (bukan balik ke pilihan mapel dari nol).
+const exitQuiz = async () => {
+  const categoryId = selectedQuiz.value?.category_id
   selectedQuiz.value = null
   questions.value = []
-  userAnswers.value = {}
-  quizFinished.value = false
+  quizResult.value = null
+
+  if (categoryId) {
+    await nextTick() // [TIM] Tunggu QuizHome ke-render ulang sebelum manggil metode reopen-nya.
+    quizHomeRef.value?.reopen(categoryId)
+  }
 }
 
-const handleLogout = () => {
-  clearInterval(timerInterval)
-  //note: Session Supabase ikut dihapus saat pengguna keluar dari aplikasi.
-  supabase.auth.signOut()
-  currentUser.value = null
-  currentTab.value = 'home'
-  resetNavigation()
-}
-
-onUnmounted(() => {
-  clearInterval(timerInterval)
-})
+// [TIM] Beresin efek samping pas aplikasi dilepas (timer toast dll).
+onUnmounted(() => toast.hide())
 </script>
 
 <template>
   <div class="app-container">
-    <header class="main-header">
-      <h1>🎓 Portal Kuis Interaktif SD</h1>
+    <!-- [TIM] Header: judul + badge user login.
+         Kelas 'auth-mode' aktif pas belum login -> judul nge-tengah biar sejajar
+         sama kartu Login/Register di desktop (nggak nyangkut di kiri lagi). -->
+    <header class="main-header" :class="{ 'auth-mode': !currentUser }">
+      <h1>Portal Kuis Interaktif</h1>
       <div v-if="currentUser" class="user-badge">
         <span>Halo, <strong>{{ currentUser.username }}</strong> (<i>{{ currentUser.role }}</i>)</span>
         <button @click="handleLogout" class="btn-logout">Keluar</button>
       </div>
     </header>
 
+    <!-- [TIM] Belum login: area autentikasi (Login/Register saling bertukar) -->
     <main v-if="!currentUser">
-      <!-- //note: Login dan Register memakai satu area autentikasi yang saling bertukar. -->
       <Register v-if="showRegister" @switch-to-login="showRegister = false" />
       <Login
         v-else
@@ -325,208 +256,127 @@ onUnmounted(() => {
       />
     </main>
 
+    <!-- [TIM] Sudah login -->
     <main v-else class="content-wrapper">
       <nav class="navbar-tabs">
-        <button :class="['tab-btn', { active: currentTab === 'home' }]" @click="{ currentTab = 'home'; resetNavigation(); }">🏠 Beranda Kuis</button>
-        <button v-if="currentUser.role === 'guru' || currentUser.role === 'admin'" :class="['tab-btn', { active: currentTab === 'add-question' }]" @click="currentTab = 'add-question'">📝 Buat Kuis & Soal</button>
-        <button v-if="currentUser.role === 'admin'" :class="['tab-btn', { active: currentTab === 'manage-users' }]" @click="currentTab = 'manage-users'">👤 Kelola Akun & Role</button>
+        <button :class="['tab-btn', { active: currentTab === 'home' }]" @click="switchTab('home')">Beranda Kuis</button>
+        <button
+          v-if="isStaff(currentUser)"
+          :class="['tab-btn', { active: currentTab === 'add-question' }]"
+          @click="switchTab('add-question')"
+        >Buat Kuis &amp; Soal</button>
+        <button
+          v-if="isAdmin(currentUser)"
+          :class="['tab-btn', { active: currentTab === 'manage-users' }]"
+          @click="switchTab('manage-users')"
+        >Kelola Role</button>
       </nav>
 
-      <!-- TAB 1: BERANDA & DAFTAR KUIS -->
+      <!-- [TIM] TAB 1: Beranda & ngerjain kuis (murid) -->
       <div v-if="currentTab === 'home'">
-        
-        <!-- Step 1: Pilih Mata Pelajaran -->
-        <section v-if="!selectedCategory" class="category-selection">
-          <h2>📚 Pilih Mata Pelajaran</h2>
-          <p>Pilih topik kuis yang ingin dikerjakan:</p>
-          <div class="category-grid">
-            <div v-for="cat in categories" :key="cat.id" class="category-card" :style="{ borderColor: cat.color }" @click="selectCategory(cat)">
-              <div class="cat-icon">{{ cat.icon }}</div>
-              <h3>{{ cat.name }}</h3>
-              <button class="btn-start" :style="{ backgroundColor: cat.color }">Lihat Daftar Kuis</button>
-            </div>
-          </div>
-          <div class="leaderboard-section"><Leaderboard /></div>
-        </section>
+        <!-- [TIM] Layar hasil akhir (abis skor diproses App.vue) -->
+        <section v-if="quizResult" class="result-card">
+          <h2>🎉 Ujian Selesai!</h2>
+          <p class="final-score">Nilai Kamu: <span>{{ quizResult.score }}</span> / 100</p>
 
-        <!-- Step 2: Pilih Sesi Quiz Spesifik (Misal: Quiz Week 1) -->
-        <section v-else-if="!selectedQuiz" class="quiz-list-section">
-          <button @click="selectedCategory = null" class="btn-back">⬅ Kembali ke Pilihan Mapel</button>
-          <h2>📋 Daftar Kuis: {{ selectedCategory.name }}</h2>
-          <p>Pilih sesi kuis yang tersedia:</p>
+          <p v-if="quizResult.saveFailed" class="info-badge info">
+            ⚠️ Nilai tidak tersimpan ke server (gangguan jaringan). Coba lagi nanti.
+          </p>
+          <p v-else-if="quizResult.countsForLeaderboard" class="info-badge success">
+            ✨ Nilai ini telah terekam secara resmi di Papan Peringkat (Leaderboard)!
+          </p>
+          <p v-else-if="quizResult.alreadyRecorded && currentUser.role === 'murid'" class="info-badge info">
+            ℹ️ Anda sudah pernah mengerjakan kuis ini sebelumnya. Nilai latihan ini tidak mengubah skor di Leaderboard.
+          </p>
+          <p v-else-if="currentUser.role !== 'murid'" class="info-badge info">
+            ℹ️ Mode coba-coba ({{ currentUser.role }}) — nilai tidak dicatat ke leaderboard.
+          </p>
 
-          <div v-if="quizList.length === 0" class="empty-state">
-            <p>Belum ada sesi kuis yang dibuat untuk mata pelajaran ini.</p>
-          </div>
-
-          <div class="quiz-session-grid" v-else>
-            <div v-for="quiz in quizList" :key="quiz.id" class="session-card" @click="startQuiz(quiz)">
-              <h3>🎯 {{ quiz.title }}</h3>
-              <p>⏱️ Durasi: {{ quiz.duration_minutes }} Menit</p>
-              <p>📝 Jumlah Soal: {{ quiz.total_questions }} Soal</p>
-              <button class="btn-start-session">Mulai Ujian</button>
-            </div>
+          <div class="result-actions">
+            <button @click="retryQuiz" class="btn-restart">🔄 Ulangi Kuis (Latihan)</button>
+            <button @click="exitQuiz" class="btn-back-home">🏠 Selesai &amp; Kembali</button>
           </div>
         </section>
 
-        <!-- Step 3: Pengerjaan Kuis Berjalan -->
-        <section v-else class="quiz-section">
-          <button @click="resetNavigation" class="btn-back">⬅ Kembali ke Daftar Kuis</button>
+        <!-- [TIM] Lagi muat soal -->
+        <div v-else-if="loadingQuiz" class="loading-state"><p>⏳ Memuat soal...</p></div>
 
-          <div v-if="loading" class="loading-state"><p>⏳ Memuat soal...</p></div>
+        <!-- [TIM] Status nyimpen nilai sebentar abis kuis dikumpulin -->
+        <div v-else-if="savingScore" class="loading-state"><p>💾 Menyimpan nilai...</p></div>
 
-          <!-- Hasil Kuis / Nilai Keluar Saat Finish -->
-          <div v-else-if="quizFinished" class="result-card">
-            <h2>🎉 Ujian Selesai!</h2>
-            <p class="final-score">Nilai Kamu: <span>{{ finalScore }}</span> / 100</p>
-            
-            <p v-if="isFirstAttempt" class="info-badge success">✨ Nilai ini telah terekam secara resmi di Papan Peringkat (Leaderboard)!</p>
-            <p v-else class="info-badge info">ℹ️ Anda sudah pernah mengerjakan kuis ini sebelumnya. Nilai latihan ini tidak mengubah skor terbaik Anda di Leaderboard.</p>
+        <!-- [TIM] Kuis lagi jalan -->
+        <QuizPlayer
+          v-else-if="selectedQuiz && questions.length > 0"
+          :key="quizPlayerKey"
+          :quiz="selectedQuiz"
+          :questions="questions"
+          @finish="handleQuizFinish"
+          @exit="exitQuiz"
+        />
 
-            <div class="result-actions">
-              <button @click="retryQuiz" class="btn-restart">🔄 Ulangi Kuis (Latihan)</button>
-              <button @click="resetNavigation" class="btn-back-home">🏠 Selesai & Kembali</button>
-            </div>
-          </div>
+        <!-- [TIM] Milih mapel / daftar kuis -->
+        <QuizHome v-else ref="quizHomeRef" :categories="CATEGORIES" @select-quiz="startQuiz" />
 
-          <!-- Pertanyaan Ujian Per Soal -->
-          <div v-else class="question-card">
-            <div class="quiz-header">
-              <span class="badge-cat">{{ selectedQuiz.title }}</span>
-              <div class="timer-badge">⏱️ Waktu: <strong>{{ formatTime(timeLeft) }}</strong></div>
-              <span class="progress-text">Soal {{ currentIndex + 1 }} dari {{ questions.length }}</span>
-            </div>
-
-            <h3 class="q-text">{{ questions[currentIndex].question_text }}</h3>
-
-            <div class="options-grid">
-              <button
-                v-for="(opt, idx) in questions[currentIndex].options"
-                :key="idx"
-                :class="['option-btn', { active: userAnswers[currentIndex] === opt }]"
-                @click="selectAnswerForCurrent(opt)"
-              >
-                {{ opt }}
-              </button>
-            </div>
-
-            <div class="quiz-nav-footer">
-              <button @click="prevQuestion" :disabled="currentIndex === 0" class="btn-nav">⬅ Sebelumnya</button>
-              
-              <button v-if="currentIndex < questions.length - 1" @click="nextQuestion" class="btn-nav btn-primary-nav">Selanjutnya ➡</button>
-              <button v-else @click="finishQuiz" class="btn-finish">📤 Selesai & Kirim Jawaban (Finish)</button>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- TAB 2: BUAT KUIS & SOAL (GURU / ADMIN) -->
-      <div v-if="currentTab === 'add-question'" class="dashboard-card teacher-card">
-        <h2>📝 Panel Pembuatan Kuis Baru</h2>
-
-        <!-- Step A: Buat Judul, Mapel, Jumlah Soal, & Durasi -->
-        <div v-if="teacherStep === 'create-quiz'">
-          <h3>Langkah 1: Atur Informasi Kuis</h3>
-          <form @submit.prevent="handleCreateQuizSession" class="form-stack">
-            <div class="input-group">
-              <label>Mata Pelajaran</label>
-              <select v-model="newQuizCategory" class="full-select">
-                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.icon }} {{ cat.name }}</option>
-              </select>
-            </div>
-
-            <div class="input-group">
-              <label>Nama / Deskripsi Sesi Kuis (Contoh: Quiz Week 1)</label>
-              <input v-model="newQuizTitle" placeholder="Ketik nama kuis..." required />
-            </div>
-
-            <div class="form-row">
-              <div class="input-group">
-                <label>Jumlah Soal (1 - 40)</label>
-                <input type="number" v-model.number="newQuizTotalQ" min="1" max="40" required />
-              </div>
-              <div class="input-group">
-                <label>Durasi Ujian</label>
-                <select v-model.number="newQuizDuration" class="full-select" required>
-                  <option :value="15">15 Menit</option>
-                  <option :value="30">30 Menit</option>
-                  <option :value="45">45 Menit</option>
-                  <option :value="60">60 Menit (1 Jam)</option>
-                  <option :value="75">75 Menit</option>
-                  <option :value="90">90 Menit (1.5 Jam)</option>
-                  <option :value="105">105 Menit</option>
-                  <option :value="120">120 Menit (2 Jam)</option>
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" class="btn-action btn-add-question">Lanjut ke Input Soal ➡</button>
-          </form>
-        </div>
-
-        <!-- Step B: Masukkan Soal ke dalam Sesi Kuis yang Dibuat -->
-        <div v-else>
-          <div class="quiz-creation-header">
-            <h3>Langkah 2: Masukkan Soal ({{ addedQuestionsCount + 1 }} dari {{ newQuizTotalQ }})</h3>
-            <span class="active-quiz-badge">Sesi: {{ newQuizTitle }}</span>
-          </div>
-
-          <form @submit.prevent="handleAddQuestionToQuiz" class="form-stack">
-            <div class="input-group">
-              <label>Tuliskan Pertanyaan</label>
-              <input v-model="newQuestionText" placeholder="Contoh: Berapakah hasil 2 + 2?" required />
-            </div>
-
-            <div class="input-group">
-              <label>Pilihan Jawaban (Opsi A - D)</label>
-              <div class="options-grid-inputs">
-                <input v-for="(opt, idx) in 4" :key="idx" v-model="newOptions[idx]" :placeholder="'Opsi ' + (idx + 1)" required />
-              </div>
-            </div>
-
-            <div class="input-group">
-              <label>Jawaban Benar (Persis seperti salah satu opsi)</label>
-              <input v-model="newCorrectOption" placeholder="Ketik jawaban benar..." required />
-            </div>
-
-            <button type="submit" class="btn-action btn-add-question">Simpan Soal Ini</button>
-          </form>
+        <!-- [TIM] Leaderboard: cuma nongol di mode jelajah (bukan pas ngerjain/menyimpan) biar
+             nggak nutupin layar kuis; ditaro di level App biar nggak reload tiap pindah kategori. -->
+        <div v-if="!selectedQuiz && !loadingQuiz && !savingScore" class="leaderboard-section">
+          <Leaderboard :refresh-key="leaderboardKey" />
         </div>
       </div>
 
-      <!-- TAB 3: KELOLA AKUN (ADMIN) -->
-      <div v-if="currentTab === 'manage-users'" class="dashboard-card admin-card">
-        <h2>👤 Panel Pengaturan Akun & Pengguna</h2>
-        <div class="sub-panel">
-          <h3>➕ Buat Akun Guru / Murid Baru</h3>
-          <form @submit.prevent="handleCreateUser" class="form-grid">
-            <div class="input-group"><label>Nama Lengkap</label><input v-model="newFullName" placeholder="Nama..." /></div>
-            <div class="input-group"><label>Username</label><input v-model="newUsername" placeholder="Username..." required /></div>
-            <div class="input-group"><label>Password</label><input v-model="newPassword" type="password" placeholder="Password..." required /></div>
-            <div class="input-group"><label>Role</label><select v-model="newAccountRole"><option value="murid">Murid</option><option value="guru">Guru</option><option value="admin">Administrator</option></select></div>
-            <button type="submit" class="btn-action btn-add-user">Buat Akun</button>
-          </form>
-        </div>
+      <!-- [TIM] TAB 2: Panel guru -->
+      <TeacherPanel v-if="currentTab === 'add-question' && isStaff(currentUser)" :user="currentUser" :categories="CATEGORIES" />
 
-        <div class="sub-panel margin-top">
-          <h3>⚙️ Daftar Pengguna</h3>
-          <table class="styled-table">
-            <thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Aksi Ubah Role</th></tr></thead>
-            <tbody>
-              <tr v-for="u in allUsers" :key="u.id">
-                <td>{{ u.full_name || '-' }}</td>
-                <td><strong>{{ u.username }}</strong></td>
-                <td><span :class="['role-tag', u.role]">{{ u.role }}</span></td>
-                <td>
-                  <select :value="u.role" @change="e => updateUserRole(u.id, e.target.value)">
-                    <option value="murid">Murid</option><option value="guru">Guru</option><option value="admin">Administrator</option>
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <!-- [TIM] TAB 3: Panel admin -->
+      <AdminPanel v-if="currentTab === 'manage-users' && isAdmin(currentUser)" :user="currentUser" />
     </main>
+
+    <!-- [TIM] Notifikasi global, satu-satunya tempat toast dirender. -->
+    <ToastHub />
   </div>
 </template>
+
+<style scoped>
+/* [TIM] Style khusus layar hasil & state di level App (kelas umum ada di style.css global). */
+.result-card {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.final-score {
+  font-size: 1.3rem;
+  color: #374151;
+}
+
+.final-score span {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #4f46e5;
+}
+
+.btn-restart {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.loading-state {
+  background: white;
+  border: 2px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.leaderboard-section {
+  margin-top: 32px;
+}
+</style>
