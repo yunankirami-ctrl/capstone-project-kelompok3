@@ -1,3 +1,8 @@
+// [TIM] Konfigurasi build Vite.
+// - plugin vue(): ngompilasi file .vue (Single File Component).
+// - VitePWA(): bikin aplikasi bisa di-install & jalan offline (service worker).
+//   PERHATIAN: nama & path ikon di manifest di bawah HARUS beneran ada di folder public/.
+//   (pwa-192x192.png & pwa-512x512.png udah kita siapin.)
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -7,7 +12,8 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // [TIM] Aset statis yang ikut di-cache service worker - pastiin file-nya beneran ada di public/.
+      includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: {
         name: 'Portal Kuis Interaktif',
         short_name: 'KuisApp',

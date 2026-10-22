@@ -2,41 +2,48 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
-const emit = defineEmits(['login-success'])
+const emit = defineEmits(['login-success', 'switch-to-register'])
 
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
 const loading = ref(false)
+// Kontrol lihat/sembunyi password.
+const showPassword = ref(false)
 
 const handleLogin = async () => {
   errorMessage.value = ''
-  if (!username.value || !password.value) {
-    errorMessage.value = 'Username dan password harus diisi!'
+  if (!email.value || !password.value) {
+    errorMessage.value = 'Email dan password harus diisi!'
     return
   }
 
   loading.value = true
 
   try {
-    // Cari data user berdasarkan username di tabel profiles
-    const { data, error } = await supabase
+    // Step verifikasi login.
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value
+    })
+
+    if (error || !authData.user) throw new Error(error?.message || 'Login gagal!')
+
+    // Ambil data user dari tabel `profiles`.
+    // jadi tinggal ambil berdasarkan id user Auth yang barusan login.
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('username', username.value)
+      .eq('id', authData.user.id)
       .single()
 
-    if (error || !data) {
-      throw new Error('Username tidak ditemukan!')
+    // Jika auth sukses tapi profile kosong = trigger `handle_new_user`
+    if (profileError || !profile) {
+      await supabase.auth.signOut()
+      throw new Error('Akun berhasil masuk, tapi profile belum terdaftar. Hubungi admin (trigger profiles belum terbentuk di Supabase).')
     }
 
-    // Validasi password sederhana
-    if (data.password !== password.value) {
-      throw new Error('Password salah!')
-    }
-
-    // Jika valid, kirim data user yang berhasil login ke App.vue
-    emit('login-success', data)
+    emit('login-success', profile)
   } catch (err) {
     errorMessage.value = err.message
   } finally {
@@ -46,93 +53,56 @@ const handleLogin = async () => {
 </script>
 
 <template>
+  <!-- Class auth-card/auth-form/dsb di style.css  -->
   <div class="auth-card">
-    <h2>🔐 Masuk Portal Kuis</h2>
-    <p class="subtitle">Silakan masuk menggunakan akun yang diberikan oleh Admin</p>
+    <h2>Masuk Portal Kuis</h2>
+    <p class="subtitle">Silakan masuk menggunakan email dan password</p>
 
     <form @submit.prevent="handleLogin" class="auth-form">
       <div class="form-group">
-        <label>Username</label>
-        <input 
-          type="text" 
-          v-model="username" 
-          placeholder="Masukkan username..." 
-          required 
+        <label>Email</label>
+        <input
+          type="email"
+          v-model="email"
+          placeholder="nama@email.com"
+          required
         />
       </div>
 
       <div class="form-group">
         <label>Password</label>
-        <input 
-          type="password" 
-          v-model="password" 
-          placeholder="Masukkan password..." 
-          required 
-        />
+        <div class="input-wrap">
+          <input
+            :type="showPassword ? 'text' : 'password'"
+            v-model="password"
+            placeholder="Masukkan password..."
+            required
+          />
+          <button
+            type="button"
+            class="toggle-pass"
+            @click="showPassword = !showPassword"
+            :aria-label="showPassword ? 'Sembunyikan password' : 'Tampilkan password'"
+            :title="showPassword ? 'Sembunyikan password' : 'Tampilkan password'"
+          >
+            <!-- Ikon mata -->
+            <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
       </div>
 
       <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
 
       <button type="submit" class="btn-primary" :disabled="loading">
-        {{ loading ? 'Memproses...' : 'Masuk' }}
+        <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>{{ loading ? 'Memproses...' : 'Masuk' }}
       </button>
     </form>
+
+    <!-- Tautan pindah ke halaman Register. -->
+    <p class="switch-text">
+      Belum punya akun?
+      <button type="button" @click="emit('switch-to-register')" class="text-link">Daftar di sini</button>
+    </p>
   </div>
 </template>
-
-<style scoped>
-.auth-card {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  max-width: 400px;
-  margin: 40px auto;
-}
-.subtitle {
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin-bottom: 20px;
-}
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  text-align: left;
-}
-.form-group label {
-  font-weight: 500;
-  font-size: 0.9rem;
-  color: #374151;
-}
-.form-group input {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 1rem;
-}
-.error-text {
-  color: #ef4444;
-  font-size: 0.85rem;
-  margin: 0;
-}
-.btn-primary {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 1rem;
-  margin-top: 10px;
-}
-.btn-primary:hover {
-  background: #4338ca;
-}
-</style>
