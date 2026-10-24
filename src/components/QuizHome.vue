@@ -59,7 +59,7 @@ defineExpose({ reopen })
   <!-- Step 1: pilih mata pelajaran -->
   <section v-if="!selectedCategory" class="category-selection">
     <h2>Pilih Mata Pelajaran</h2>
-    <p>Pilih mata kuis dari mata pelajaran yang tersedia</p>
+    <p>Pilih kuis yang tersedia di bawah ini</p>
     <div class="category-grid">
       <div
         v-for="cat in categories"
