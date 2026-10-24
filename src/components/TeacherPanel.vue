@@ -26,6 +26,70 @@ const newQuestionText = ref('')
 const newOptions = ref(['', '', '', ''])
 const newCorrectOption = ref('')
 
+// Gambar soal (opsional).
+const IMAGE_BUCKET = 'question-images'
+const MAX_IMAGE_MB = 2
+const newQuestionImage = ref(null)
+const imagePreview = ref('')
+
+const resetImage = () => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
+  newQuestionImage.value = null
+  imagePreview.value = ''
+}
+
+const handleImageSelect = (e) => {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    e.target.value = ''
+    return toast.error('File harus berupa gambar (JPG/PNG).')
+  }
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+    e.target.value = ''
+    return toast.error(`Ukuran gambar maksimal ${MAX_IMAGE_MB}MB.`)
+  }
+  newQuestionImage.value = file
+  imagePreview.value = URL.createObjectURL(file)
+}
+
+// Perkecil & kompres gambar di browser sebelum upload (hemat storage, kuis tetap ngebut).
+const compressImage = (file) => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file)
+  const img = new Image()
+  img.onload = () => {
+    URL.revokeObjectURL(url)
+    const MAX_DIM = 1280
+    let w = img.width
+    let h = img.height
+    if (w > MAX_DIM || h > MAX_DIM) {
+      const scale = Math.min(MAX_DIM / w, MAX_DIM / h)
+      w = Math.round(w * scale)
+      h = Math.round(h * scale)
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Gagal memproses gambar.')), 'image/jpeg', 0.8)
+  }
+  img.onerror = () => {
+    URL.revokeObjectURL(url)
+    reject(new Error('Gambar tidak bisa dibaca.'))
+  }
+  img.src = url
+})
+
+// Ambil path storage dari public URL (buat hapus file).
+const storagePathFromUrl = (url) => {
+  const marker = '/question-images/'
+  const i = (url || '').indexOf(marker)
+  return i >= 0 ? decodeURIComponent(url.slice(i + marker.length)) : null
+}
+
 // Opsi yang udah diisi.
 const filledOptions = computed(() => newOptions.value.map((o) => o.trim()).filter(Boolean))
 
@@ -76,6 +140,7 @@ const quitAddingQuestions = () => {
   newQuestionText.value = ''
   newOptions.value = ['', '', '', '']
   newCorrectOption.value = ''
+  resetImage()
 }
 
 // Langkah 2 - validasi terus simpan satu soal ke tabel `questions`.
@@ -90,22 +155,36 @@ const handleAddQuestionToQuiz = async () => {
 
   submitting.value = true
   try {
+    // Upload gambar (kalau ada) DULU sebelum insert soal; kalau gagal, soal nggak jadi disimpan.
+    let imageUrl = null
+    if (newQuestionImage.value) {
+      const blob = await compressImage(newQuestionImage.value)
+      const path = `${createdQuizId.value}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`
+      const { error: uploadError } = await supabase.storage
+        .from(IMAGE_BUCKET)
+        .upload(path, blob, { contentType: 'image/jpeg' })
+      if (uploadError) throw uploadError
+      imageUrl = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl
+    }
+
     const { error } = await supabase.from('questions').insert([{
       quiz_id: createdQuizId.value,
       category_id: newQuizCategory.value,
       question_text: questionText,
       options, // Disimpan sebagai array JSONB sesuai skema tabel.
-      correct_option: newCorrectOption.value
+      correct_option: newCorrectOption.value,
+      image_url: imageUrl
     }])
 
     if (error) throw error
 
     addedQuestionsCount.value++
 
-    // Reset cuma bagian teks & kunci.
+    // Reset form soal.
     newQuestionText.value = ''
     newOptions.value = ['', '', '', '']
     newCorrectOption.value = ''
+    resetImage()
 
     if (addedQuestionsCount.value >= newQuizTotalQ.value) {
       toast.success(`Selesai! Semua ${newQuizTotalQ.value} soal kuis "${createdQuizTitle.value}" tersimpan.`)
@@ -188,8 +267,22 @@ const confirmDeleteQuiz = async (quiz) => {
   if (deleting.value) return
   deleting.value = true
   try {
+    // Catat gambar soal DULU; cascade DB hapus barisnya tapi file storage tidak ikut kehapus.
+    const { data: imgRows } = await supabase
+      .from('questions')
+      .select('image_url')
+      .eq('quiz_id', quiz.id)
+      .not('image_url', 'is', null)
+
     const { error } = await supabase.from('quizzes').delete().eq('id', quiz.id)
     if (error) throw error
+
+    const paths = (imgRows || []).map((r) => storagePathFromUrl(r.image_url)).filter(Boolean)
+    if (paths.length > 0) {
+      const { error: storageError } = await supabase.storage.from(IMAGE_BUCKET).remove(paths)
+      if (storageError) toast.error('Kuis terhapus, tapi gagal menghapus file gambarnya.')
+    }
+
     quizRows.value = quizRows.value.filter((r) => r.id !== quiz.id)
     if (expandedQuizId.value === quiz.id) {
       expandedQuizId.value = null
@@ -211,6 +304,15 @@ const confirmDeleteQuestion = async (q) => {
   try {
     const { error } = await supabase.from('questions').delete().eq('id', q.id)
     if (error) throw error
+
+    if (q.image_url) {
+      const path = storagePathFromUrl(q.image_url)
+      if (path) {
+        const { error: storageError } = await supabase.storage.from(IMAGE_BUCKET).remove([path])
+        if (storageError) toast.error('Soal terhapus, tapi file gambarnya gagal dihapus.')
+      }
+    }
+
     quizQuestions.value = quizQuestions.value.filter((x) => x.id !== q.id)
     pendingDeleteQuestion.value = null
     toast.success('Soal berhasil dihapus.')
@@ -288,6 +390,19 @@ const confirmDeleteQuestion = async (q) => {
         <div class="input-group">
           <label>Tuliskan Pertanyaan</label>
           <input v-model="newQuestionText" placeholder="Contoh: Berapakah hasil 2 + 2?" maxlength="500" required />
+        </div>
+
+        <div class="input-group">
+          <label>Gambar Soal (opsional)</label>
+          <div v-if="!imagePreview" class="image-picker">
+            <input id="question-image-input" type="file" accept="image/*" @change="handleImageSelect" />
+            <label for="question-image-input" class="btn-nav">Pilih Gambar</label>
+            <span class="image-hint">Maksimal 2MB, otomatis diperkecil sebelum di-upload</span>
+          </div>
+          <div v-else class="image-preview-box">
+            <img :src="imagePreview" alt="Preview gambar soal" class="image-preview" />
+            <button type="button" class="btn-nav" @click="resetImage">Ganti / Hapus Gambar</button>
+          </div>
         </div>
 
         <div class="input-group">
@@ -377,6 +492,35 @@ const confirmDeleteQuestion = async (q) => {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+/* Picker gambar soal. */
+.image-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.image-picker input[type="file"] {
+  display: none;
+}
+.image-hint {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.image-preview-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.image-preview {
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
 }
 
 /* Switch mode Buat/Kelola di panel guru. */

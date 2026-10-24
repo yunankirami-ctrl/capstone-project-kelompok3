@@ -13,6 +13,7 @@ const emit = defineEmits(['finish', 'exit'])
 const currentIndex = ref(0)
 const userAnswers = ref({}) // Formatnya { nomorSoal: teksJawabanYangDipilih }.
 const submitting = ref(false) // Biar tombol finish nggak diklik dua kali.
+const zoomImage = ref(null)   // URL gambar yang lagi diperbesar (lightbox); null = tertutup.
 
 // State timer.
 const timeLeft = ref(0)
@@ -120,6 +121,17 @@ onUnmounted(() => clearInterval(timerInterval))
 
       <h3 class="q-text">{{ questions[currentIndex].question_text }}</h3>
 
+      <img
+        v-if="questions[currentIndex].image_url"
+        :key="questions[currentIndex].id"
+        :src="questions[currentIndex].image_url"
+        class="q-image"
+        alt="Gambar soal"
+        loading="lazy"
+        @click="zoomImage = questions[currentIndex].image_url"
+        @error="$event.target.style.display = 'none'"
+      />
+
       <div class="options-grid">
         <button
           v-for="(opt, idx) in questions[currentIndex].options"
@@ -148,6 +160,12 @@ onUnmounted(() => clearInterval(timerInterval))
     <!-- Pengaman kalo ternyata soal kosong -->
     <div v-else class="empty-state">
       <p>Kuis ini belum memiliki soal. Hubungi guru Anda.</p>
+    </div>
+
+    <!-- Lightbox: klik gambar soal buat memperbesar, klik mana aja buat nutup. -->
+    <div v-if="zoomImage" class="img-lightbox" @click="zoomImage = null">
+      <img :src="zoomImage" alt="Gambar soal diperbesar" class="img-lightbox-img" />
+      <span class="img-lightbox-hint">Klik di mana saja untuk menutup</span>
     </div>
   </section>
 </template>
@@ -210,8 +228,47 @@ onUnmounted(() => clearInterval(timerInterval))
   color: #6b7280;
 }
 
+/* Gambar soal: selalu muat, rasio asli dijaga, nggak pernah kepotong/meleber. */
+.q-image {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  cursor: zoom-in;
+}
+
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  cursor: zoom-out;
+}
+.img-lightbox-img {
+  max-width: 100%;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+}
+.img-lightbox-hint {
+  position: absolute;
+  bottom: 18px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 640px) {
   .question-card,
   .empty-state { padding: 16px; }
+  .q-image { max-height: 200px; }
 }
 </style>
