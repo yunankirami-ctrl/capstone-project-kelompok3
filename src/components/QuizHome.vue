@@ -77,7 +77,7 @@ defineExpose({ reopen })
 
   <!-- Step 2: daftar sesi kuis -->
   <section v-else class="quiz-list-section">
-    <button @click="backToCategories" class="btn-back">← Kembali ke Pilihan Mapel</button>
+    <button @click="backToCategories" class="btn-back">← Kembali</button>
     <h2>Daftar Kuis: {{ selectedCategory.name }}</h2>
     <p>Pilih sesi kuis yang tersedia:</p>
 
