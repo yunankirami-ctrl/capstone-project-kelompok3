@@ -264,7 +264,7 @@ onUnmounted(() => toast.hide())
           </p>
 
           <div class="result-actions">
-            <button @click="retryQuiz" class="btn-restart">Ulangi Kuis (Latihan)</button>
+            <button @click="retryQuiz" class="btn-restart">Ulangi Kuis</button>
             <button @click="exitQuiz" class="btn-back-home">Selesai &amp; Kembali</button>
           </div>
         </section>

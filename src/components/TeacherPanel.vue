@@ -53,7 +53,7 @@ const handleImageSelect = (e) => {
   imagePreview.value = URL.createObjectURL(file)
 }
 
-// Perkecil & kompres gambar di browser sebelum upload (hemat storage, kuis tetap ngebut).
+// Perkecil & kompres gambar.
 const compressImage = (file) => new Promise((resolve, reject) => {
   const url = URL.createObjectURL(file)
   const img = new Image()
@@ -83,14 +83,13 @@ const compressImage = (file) => new Promise((resolve, reject) => {
   img.src = url
 })
 
-// Ambil path storage dari public URL (buat hapus file).
+// Ambil path storage dari public URL untuk hapus gambar.
 const storagePathFromUrl = (url) => {
   const marker = '/question-images/'
   const i = (url || '').indexOf(marker)
   return i >= 0 ? decodeURIComponent(url.slice(i + marker.length)) : null
 }
 
-// Opsi yang udah diisi.
 const filledOptions = computed(() => newOptions.value.map((o) => o.trim()).filter(Boolean))
 
 // Langkah 1 - simpan sesi kuis baru ke tabel `quizzes`.
@@ -155,7 +154,7 @@ const handleAddQuestionToQuiz = async () => {
 
   submitting.value = true
   try {
-    // Upload gambar (kalau ada) DULU sebelum insert soal; kalau gagal, soal nggak jadi disimpan.
+    // Upload gambar sebelum insert soal. Kalau gagal, soal nggak jadi disimpan.
     let imageUrl = null
     if (newQuestionImage.value) {
       const blob = await compressImage(newQuestionImage.value)
@@ -335,7 +334,7 @@ const confirmDeleteQuestion = async (q) => {
       <button :class="['mode-btn', { active: panelMode === 'manage' }]" @click="switchToManage">Kelola & Hapus Kuis</button>
     </div>
 
-    <!-- MODE CREATE: wizard 2 langkah (info kuis -> input soal). -->
+    <!-- MODE CREATE: wizard 2 langkah. -->
     <div v-if="panelMode === 'create'">
     <!-- Step A: Informasi Kuis -->
     <div v-if="teacherStep === 'create-quiz'">
@@ -465,7 +464,7 @@ const confirmDeleteQuestion = async (q) => {
             </div>
           </div>
 
-          <!-- Soal satuan: nongol pas kuis ini dibuka. Tiap baris punya hapus sendiri. -->
+          <!-- Tiap baris soal punya hapus sendiri. -->
           <div v-if="expandedQuizId === quiz.id" class="manage-questions">
             <div v-if="loadingQuestions" class="manage-state"><p>Memuat soal...</p></div>
             <div v-else-if="quizQuestions.length === 0" class="manage-state empty"><p>Belum ada soal di kuis ini.</p></div>
@@ -625,7 +624,7 @@ const confirmDeleteQuestion = async (q) => {
   margin: 0;
 }
 
-/* Tombol bahaya buat aksi hapus (destruktif). */
+/* Tombol bahaya buat aksi hapus. */
 .btn-danger {
   border: none;
   background: #ef4444;

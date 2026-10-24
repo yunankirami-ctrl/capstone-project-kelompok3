@@ -11,9 +11,9 @@ const emit = defineEmits(['finish', 'exit'])
 
 // State pas lagi ngerjain.
 const currentIndex = ref(0)
-const userAnswers = ref({}) // Formatnya { nomorSoal: teksJawabanYangDipilih }.
+const userAnswers = ref({}) // Formatnya.
 const submitting = ref(false) // Biar tombol finish nggak diklik dua kali.
-const zoomImage = ref(null)   // URL gambar yang lagi diperbesar (lightbox); null = tertutup.
+const zoomImage = ref(null)   // URL gambar yang lagi diperbesar.
 
 // State timer.
 const timeLeft = ref(0)
@@ -152,7 +152,7 @@ onUnmounted(() => clearInterval(timerInterval))
           class="btn-nav btn-primary-nav"
         >Selanjutnya →</button>
         <button v-else @click="finishQuiz" :disabled="submitting" class="btn-finish">
-          <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>Selesai &amp; Kirim Jawaban (Finish)
+          <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>Selesai &amp; Kirim Jawaban
         </button>
       </div>
     </div>
@@ -162,7 +162,7 @@ onUnmounted(() => clearInterval(timerInterval))
       <p>Kuis ini belum memiliki soal. Hubungi guru Anda.</p>
     </div>
 
-    <!-- Lightbox: klik gambar soal buat memperbesar, klik mana aja buat nutup. -->
+    <!-- Klik gambar soal buat memperbesar, klik mana aja buat nutup. -->
     <div v-if="zoomImage" class="img-lightbox" @click="zoomImage = null">
       <img :src="zoomImage" alt="Gambar soal diperbesar" class="img-lightbox-img" />
       <span class="img-lightbox-hint">Klik di mana saja untuk menutup</span>
@@ -228,7 +228,7 @@ onUnmounted(() => clearInterval(timerInterval))
   color: #6b7280;
 }
 
-/* Gambar soal: selalu muat, rasio asli dijaga, nggak pernah kepotong/meleber. */
+/* Gambar soal. */
 .q-image {
   display: block;
   width: 100%;
