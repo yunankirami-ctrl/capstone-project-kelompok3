@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { supabase } from './supabase/supabase.js'
 import Login from './components/Login.vue'
 import Register from './components/Register.vue'
@@ -8,6 +8,7 @@ import QuizHome from './components/QuizHome.vue'
 import QuizPlayer from './components/QuizPlayer.vue'
 import TeacherPanel from './components/TeacherPanel.vue'
 import AdminPanel from './components/AdminPanel.vue'
+import ProfileView from './components/ProfileView.vue'
 import ToastHub from './components/ToastHub.vue'
 import { CATEGORIES } from './data/categories.js'
 import { ROLES, isStaff, isAdmin } from './data/roles.js'
@@ -18,6 +19,7 @@ const currentUser = ref(null)   // Baris profile user yang login.
 const showRegister = ref(false) // Ganti-tampil Login/Register di area autentikasi.
 const currentTab = ref('home')  // Tab aktif.
 const leaderboardKey = ref(0)   // Leaderboard fetch ulang.
+const sidebarOpen = ref(false)  // Drawer sidebar versi mobile.
 
 // ===== State alur kuis murid =====
 const selectedQuiz = ref(null)     // Sesi kuis yang terakhir dipilih.
@@ -29,22 +31,57 @@ const quizPlayerKey = ref(0)       // QuizPlayer di-remount.
 const firstAttemptFlag = ref(true) // Penanda pengerjaan sekarang.
 const quizHomeRef = ref(null)      // Referensi ke QuizHome.
 
+// Huruf awal nama untuk avatar inisial di sidebar & topbar.
+const userInitials = computed(() => {
+  if (!currentUser.value) return ''
+  const name = (currentUser.value.full_name || currentUser.value.username || '?').trim()
+  return name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+})
+
+// Judul halaman aktif, ditampilkan di topbar mobile.
+const PAGE_TITLES = {
+  home: 'Beranda Kuis',
+  leaderboard: 'Papan Peringkat',
+  profile: 'Profil Saya',
+  'add-question': 'Buat Kuis & Soal',
+  'manage-users': 'Kelola Role'
+}
+const pageTitle = computed(() => PAGE_TITLES[currentTab.value] || 'Portal Kuis')
+
+// Halaman terakhir disimpan biar pas browser refresh nggak balik ke beranda.
+const LAST_TAB_KEY = 'portal-last-tab'
+
+const lastSavedTab = (profile) => {
+  const saved = localStorage.getItem(LAST_TAB_KEY)
+  if (!saved || !(saved in PAGE_TITLES)) return 'home'
+  if (saved === 'add-question' && !isStaff(profile)) return 'home'
+  if (saved === 'manage-users' && !isAdmin(profile)) return 'home'
+  return saved
+}
+
 const switchTab = (tab) => {
   currentTab.value = tab
+  localStorage.setItem(LAST_TAB_KEY, tab)
+  sidebarOpen.value = false // Drawer mobile ditutup tiap pindah halaman.
   quizResult.value = null
   selectedQuiz.value = null
   questions.value = []
 }
 
+// Nama lengkap diubah lewat ProfileView — header/sidebar ikut update.
+const handleProfileUpdated = (patch) => {
+  if (currentUser.value) currentUser.value = { ...currentUser.value, ...patch }
+}
+
 // ===== Autentikasi =====
 
-const handleLoginSuccess = (profile) => {
+const handleLoginSuccess = (profile, initialTab = 'home') => {
   currentUser.value = profile
   quizResult.value = null
   selectedQuiz.value = null
   questions.value = []
   showRegister.value = false
-  switchTab('home')
+  switchTab(initialTab)
   leaderboardKey.value++
 }
 
@@ -68,7 +105,7 @@ const restoreSession = async () => {
       return
     }
 
-    handleLoginSuccess(profile)
+    handleLoginSuccess(profile, lastSavedTab(profile))
   } catch (err) {
     // Gangguan jaringan pas restore sesi.
     console.warn('Gagal restore sesi:', err.message)
@@ -88,6 +125,8 @@ const handleLogout = async () => {
     currentUser.value = null
     showRegister.value = false
     currentTab.value = 'home'
+    localStorage.removeItem(LAST_TAB_KEY) // Habis logout, mulai lagi dari beranda.
+    sidebarOpen.value = false
     quizResult.value = null
     selectedQuiz.value = null
     questions.value = []
@@ -175,6 +214,14 @@ const handleQuizFinish = async ({ score }) => {
 
       firstAttemptFlag.value = false
       leaderboardKey.value++ // Refresh leaderboard.
+
+      // Tarik poin sinkron.
+      const { data: freshProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.value.id)
+        .single()
+      if (freshProfile) currentUser.value = freshProfile
     }
 
     quizResult.value = { score, countsForLeaderboard, alreadyRecorded: !countsForLeaderboard && isMurid }
@@ -207,18 +254,13 @@ onUnmounted(() => toast.hide())
 </script>
 
 <template>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="main-header" :class="{ 'auth-mode': !currentUser }">
+  <!-- ===== Belum login===== -->
+  <div v-if="!currentUser" class="app-container">
+    <header class="main-header auth-mode">
       <h1>Portal Kuis Interaktif</h1>
-      <div v-if="currentUser" class="user-badge">
-        <span>Halo, <strong>{{ currentUser.username }}</strong> (<i>{{ currentUser.role }}</i>)</span>
-        <button @click="handleLogout" class="btn-logout">Keluar</button>
-      </div>
     </header>
 
-    <!-- Belum login -->
-    <main v-if="!currentUser">
+    <main>
       <Register v-if="showRegister" @switch-to-login="showRegister = false" />
       <Login
         v-else
@@ -226,24 +268,63 @@ onUnmounted(() => toast.hide())
         @switch-to-register="showRegister = true"
       />
     </main>
+  </div>
 
-    <!-- Sudah login -->
-    <main v-else class="content-wrapper">
-      <nav class="navbar-tabs">
-        <button :class="['tab-btn', { active: currentTab === 'home' }]" @click="switchTab('home')">Beranda Kuis</button>
+  <!-- ===== Sudah login ===== -->
+  <div v-else class="app-shell">
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
+      <div class="sidebar-brand">Portal Kuis Interaktif</div>
+
+      <!-- Chip user diklik = ke halaman profil, ala sosmed. -->
+      <button
+        type="button"
+        :class="['sidebar-user', { active: currentTab === 'profile' }]"
+        @click="switchTab('profile')"
+        title="Profil saya"
+      >
+        <span class="avatar-initials" aria-hidden="true">{{ userInitials }}</span>
+        <div class="sidebar-user-info">
+          <strong>{{ currentUser.full_name || currentUser.username }}</strong>
+          <span>{{ currentUser.role }}</span>
+        </div>
+      </button>
+
+      <nav class="sidebar-nav">
+        <button :class="['side-link', { active: currentTab === 'home' }]" @click="switchTab('home')">Beranda Kuis</button>
+        <button :class="['side-link', { active: currentTab === 'leaderboard' }]" @click="switchTab('leaderboard')">Papan Peringkat</button>
         <button
           v-if="isStaff(currentUser)"
-          :class="['tab-btn', { active: currentTab === 'add-question' }]"
+          :class="['side-link', { active: currentTab === 'add-question' }]"
           @click="switchTab('add-question')"
         >Buat Kuis &amp; Soal</button>
         <button
           v-if="isAdmin(currentUser)"
-          :class="['tab-btn', { active: currentTab === 'manage-users' }]"
+          :class="['side-link', { active: currentTab === 'manage-users' }]"
           @click="switchTab('manage-users')"
         >Kelola Role</button>
       </nav>
 
-      <!-- TAB 1 -->
+      <div class="sidebar-footer">
+        <button @click="handleLogout" class="btn-logout">Keluar</button>
+      </div>
+    </aside>
+
+    <div class="shell-main">
+      <!-- Topbar mobile -->
+      <header class="mobile-topbar">
+        <button class="hamburger-btn" @click="sidebarOpen = true" aria-label="Buka menu">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="topbar-title">{{ pageTitle }}</span>
+        <button type="button" class="topbar-avatar" @click="switchTab('profile')" aria-label="Profil saya" title="Profil saya">
+          <span class="avatar-initials avatar-sm" aria-hidden="true">{{ userInitials }}</span>
+        </button>
+      </header>
+
+      <main class="shell-content">
+      <!-- HALAMAN 1: Beranda kuis -->
       <div v-if="currentTab === 'home'">
         <!-- Layar hasil akhir -->
         <section v-if="quizResult" class="result-card">
@@ -288,22 +369,33 @@ onUnmounted(() => toast.hide())
         <!-- Pilih mapel / daftar kuis -->
         <QuizHome v-else ref="quizHomeRef" :categories="CATEGORIES" @select-quiz="startQuiz" />
 
-        <!-- Leaderboard. -->
-        <div v-if="!selectedQuiz && !loadingQuiz && !savingScore" class="leaderboard-section">
-          <Leaderboard :refresh-key="leaderboardKey" />
-        </div>
       </div>
 
-      <!-- TAB 2-->
-      <TeacherPanel v-if="currentTab === 'add-question' && isStaff(currentUser)" :user="currentUser" :categories="CATEGORIES" />
+      <!-- HALAMAN 2 -->
+      <Leaderboard
+        v-else-if="currentTab === 'leaderboard'"
+        :refresh-key="leaderboardKey"
+        :highlight-username="currentUser.username"
+      />
 
-      <!-- TAB 3 -->
-      <AdminPanel v-if="currentTab === 'manage-users' && isAdmin(currentUser)" :user="currentUser" />
-    </main>
+      <!-- HALAMAN 3 -->
+      <ProfileView
+        v-else-if="currentTab === 'profile'"
+        :user="currentUser"
+        @profile-updated="handleProfileUpdated"
+      />
 
-    <!-- Notifikasi global. -->
-    <ToastHub />
+      <!-- HALAMAN 4 -->
+      <TeacherPanel v-else-if="currentTab === 'add-question' && isStaff(currentUser)" :user="currentUser" :categories="CATEGORIES" />
+
+      <!-- HALAMAN 5 -->
+      <AdminPanel v-else-if="currentTab === 'manage-users' && isAdmin(currentUser)" :user="currentUser" />
+      </main>
+    </div>
   </div>
+
+  <!-- Notifikasi global. -->
+  <ToastHub />
 </template>
 
 <style scoped>
@@ -343,9 +435,5 @@ onUnmounted(() => toast.hide())
   padding: 30px;
   text-align: center;
   color: #6b7280;
-}
-
-.leaderboard-section {
-  margin-top: 32px;
 }
 </style>

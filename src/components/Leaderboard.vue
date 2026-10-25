@@ -3,7 +3,9 @@ import { ref, watch, onMounted } from 'vue'
 import { supabase } from '../supabase/supabase.js'
 
 const props = defineProps({
-  refreshKey: { type: Number, default: 0 }
+  refreshKey: { type: Number, default: 0 },
+  // Username user yang login, buat highlight barisnya di peringkat.
+  highlightUsername: { type: String, default: '' }
 })
 
 const leaderboardData = ref([])
@@ -46,9 +48,13 @@ watch(() => props.refreshKey, fetchLeaderboard)
     </div>
 
     <ul v-else-if="leaderboardData.length > 0" class="rank-list">
-      <li v-for="(user, index) in leaderboardData" :key="index" class="rank-item">
+      <li
+        v-for="(user, index) in leaderboardData"
+        :key="index"
+        :class="['rank-item', { me: highlightUsername && user.username === highlightUsername }]"
+      >
         <span class="rank-number" :class="'top-' + (index + 1)">{{ index + 1 }}</span>
-        <span class="username">{{ user.username || 'Siswa' }}</span>
+        <span class="username">{{ user.username || 'Siswa' }}<span v-if="highlightUsername && user.username === highlightUsername" class="you-tag">Kamu</span></span>
         <span class="points">{{ user.points || 0 }} XP</span>
       </li>
     </ul>
@@ -63,9 +69,8 @@ watch(() => props.refreshKey, fetchLeaderboard)
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  max-width: 400px;
+  max-width: 560px;
   margin: 20px auto;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 h2 {
   text-align: center;
@@ -102,6 +107,20 @@ h2 {
 .points {
   font-weight: 600;
   color: #4f46e5;
+}
+.rank-item.me {
+  background: #eef2ff;
+  border-radius: 8px;
+}
+.you-tag {
+  margin-left: 8px;
+  background: #4f46e5;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
 }
 .state-text {
   text-align: center;

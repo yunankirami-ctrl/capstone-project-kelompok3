@@ -34,6 +34,12 @@ const fetchAllUsers = async () => {
 
 onMounted(fetchAllUsers)
 
+// Huruf awal untuk avatar inisial di kartu pengguna.
+const userInitials = (u) => {
+  const name = (u.full_name || u.username || '?').trim()
+  return name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+}
+
 // Ganti role pengguna. tapi admin gabisa ganti role diri sendiri
 // biar nggak gak dikunci keluar dari panel admin tanpa sengaja.
 const updateUserRole = async (userId, newRole) => {
@@ -72,32 +78,25 @@ const updateUserRole = async (userId, newRole) => {
       <div v-if="loading" class="state-text">Memuat data...</div>
       <p v-else-if="errorMessage" class="state-text error">{{ errorMessage }}</p>
 
-      <!-- Wrapper .table-scroll: di layar HP tabelnya bisa digeser horizontal -->
-      <div v-else-if="allUsers.length > 0" class="table-scroll">
-        <table class="styled-table">
-        <thead>
-          <tr>
-            <th>Nama</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Aksi Ubah Role</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="u in allUsers" :key="u.id">
-            <td>{{ u.full_name || '-' }}</td>
-            <td><strong>{{ u.username }}</strong></td>
-            <td><span :class="['role-tag', u.role]">{{ u.role }}</span></td>
-            <td>
-              <!-- Dropdown role; nilai current di-binding biar tetep sesuai data terbaru abis fetch ulang. -->
-              <select :value="u.role" @change="e => updateUserRole(u.id, e.target.value)">
-                <option v-for="r in ROLE_OPTIONS" :key="r.value" :value="r.value">{{ r.label }}</option>
-              </select>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
+      <!-- Daftar pengguna versi kartu: tanpa scroll horizontal di HP, rapi di desktop. -->
+      <ul v-else-if="allUsers.length > 0" class="user-list">
+        <li v-for="u in allUsers" :key="u.id" class="user-row">
+          <span class="avatar-initials avatar-sm" aria-hidden="true">{{ userInitials(u) }}</span>
+          <div class="user-meta">
+            <strong>{{ u.username }}</strong>
+            <span>{{ u.full_name || 'Nama belum diisi' }}</span>
+          </div>
+          <span :class="['role-tag', u.role]">{{ u.role }}</span>
+          <!-- Dropdown role; nilai current di-binding biar tetep sesuai data terbaru abis fetch ulang. -->
+          <select
+            :value="u.role"
+            :title="'Ubah role ' + u.username"
+            @change="e => updateUserRole(u.id, e.target.value)"
+          >
+            <option v-for="r in ROLE_OPTIONS" :key="r.value" :value="r.value">{{ r.label }}</option>
+          </select>
+        </li>
+      </ul>
 
       <p v-else class="state-text">Belum ada pengguna terdaftar.</p>
     </div>
@@ -125,5 +124,86 @@ const updateUserRole = async (userId, newRole) => {
 
 .state-text.error {
   color: #ef4444;
+}
+
+/* Kartu daftar pengguna */
+.user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.user-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-meta strong {
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-meta span {
+  font-size: 0.82rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-row select {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.user-row select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@media (max-width: 640px) {
+  .user-row {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  /* Baris 1: avatar + nama; baris 2: role tag + dropdown melebar. */
+  .user-meta {
+    flex: 1 1 calc(100% - 56px);
+  }
+
+  .user-row .role-tag {
+    order: 3;
+  }
+
+  .user-row select {
+    order: 4;
+    flex: 1;
+    min-width: 0;
+  }
 }
 </style>
