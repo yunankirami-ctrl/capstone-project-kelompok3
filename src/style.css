@@ -17,6 +17,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+:root {
+  --radius-card: 14px;
+  --shadow-card: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
 .app-container {
   max-width: 800px;
   margin: 0 auto;
@@ -326,9 +331,9 @@ body {
 .dashboard-card {
   background: white;
   padding: 24px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   margin-bottom: 28px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-card);
   text-align: left;
 }
 
@@ -623,8 +628,8 @@ body {
 .auth-card {
   background: white;
   padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   max-width: 400px;
   margin: 40px auto;
 }
@@ -713,6 +718,41 @@ body {
 .btn-primary:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+.btn-nav,
+.btn-finish,
+.btn-back-home,
+.btn-logout {
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.btn-nav:hover:not(:disabled) { background: #d1d5db; }
+.btn-finish:hover { background: #059669; }
+.btn-back-home:hover { background: #374151; }
+.btn-logout:hover { background: #dc2626; }
+
+.btn-primary:active:not(:disabled),
+.btn-nav:active:not(:disabled),
+.btn-finish:active,
+.btn-back-home:active,
+.btn-logout:active,
+.side-link:active {
+  transform: translateY(1px);
+}
+
+/* Empty-state seragam: dipakai ulang di tiap daftar kosong. */
+.empty-state {
+  background: #f8fafc;
+  border: 2px dashed #e5e7eb;
+  border-radius: var(--radius-card);
+  padding: 28px 16px;
+  text-align: center;
+  color: #64748b;
+}
+
+.empty-state p {
+  margin: 0;
 }
 
 /* TOMBOL & INPUT */

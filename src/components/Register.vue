@@ -13,6 +13,18 @@ const showPassword = ref(false)
 
 const emit = defineEmits(['switch-to-login'])
 
+// Error Supabase.
+const friendlyRegisterError = (msg) => {
+  const m = (msg || '').toLowerCase()
+  if (m.includes('username')) {
+    return 'Username sudah dipakai. Coba nama lain, misalnya tambah angka di belakang.'
+  }
+  if (m.includes('already registered') || m.includes('already exists') || m.includes('email')) {
+    return 'Email sudah terdaftar. Silakan Masuk, atau pakai email lain.'
+  }
+  return msg
+}
+
 const handleRegister = async () => {
   errorMessage.value = ''
   successMessage.value = ''
@@ -51,7 +63,7 @@ const handleRegister = async () => {
 
     successMessage.value = 'Pendaftaran berhasil! Kamu bisa langsung Masuk (login) sekarang.'
   } catch (err) {
-    errorMessage.value = err.message
+    errorMessage.value = friendlyRegisterError(err.message)
   } finally {
     loading.value = false
   }
@@ -61,7 +73,7 @@ const handleRegister = async () => {
 <template>
   <!-- Desain form daftar akun  -->
   <div class="auth-card">
-    <h2>Daftar Akun Siswa Baru</h2>
+    <h2>Daftar Akun Baru</h2>
     <p class="subtitle">Isi data di bawah untuk membuat akun</p>
 
     <form @submit.prevent="handleRegister" class="auth-form">

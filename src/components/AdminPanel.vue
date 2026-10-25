@@ -98,7 +98,7 @@ const updateUserRole = async (userId, newRole) => {
         </li>
       </ul>
 
-      <p v-else class="state-text">Belum ada pengguna terdaftar.</p>
+      <p v-else class="empty-state">Belum ada pengguna terdaftar.</p>
     </div>
   </div>
 </template>
@@ -142,7 +142,7 @@ const updateUserRole = async (userId, newRole) => {
   gap: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   padding: 12px 14px;
 }
 

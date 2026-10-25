@@ -444,7 +444,7 @@ const confirmDeleteQuestion = async (q) => {
       </div>
 
       <div v-if="loadingManage" class="manage-state"><p>Memuat daftar kuis...</p></div>
-      <div v-else-if="quizRows.length === 0" class="manage-state empty"><p>Belum ada kuis yang dibuat.</p></div>
+      <div v-else-if="quizRows.length === 0" class="empty-state"><p>Belum ada kuis yang dibuat.</p></div>
 
       <ul v-else class="manage-list">
         <li v-for="quiz in quizRows" :key="quiz.id" class="manage-item">
@@ -467,7 +467,7 @@ const confirmDeleteQuestion = async (q) => {
           <!-- Tiap baris soal punya hapus sendiri. -->
           <div v-if="expandedQuizId === quiz.id" class="manage-questions">
             <div v-if="loadingQuestions" class="manage-state"><p>Memuat soal...</p></div>
-            <div v-else-if="quizQuestions.length === 0" class="manage-state empty"><p>Belum ada soal di kuis ini.</p></div>
+            <div v-else-if="quizQuestions.length === 0" class="empty-state"><p>Belum ada soal di kuis ini.</p></div>
             <ul v-else class="question-manage-list">
               <li v-for="q in quizQuestions" :key="q.id" class="question-manage-item">
                 <span class="q-manage-text">{{ q.question_text }}</span>
@@ -537,6 +537,13 @@ const confirmDeleteQuestion = async (q) => {
   border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.mode-btn:hover {
+  background: #f3f4f6;
+}
+.mode-btn:active {
+  transform: translateY(1px);
 }
 .mode-btn.active {
   border-color: #4f46e5;
@@ -620,9 +627,6 @@ const confirmDeleteQuestion = async (q) => {
   color: #6b7280;
   padding: 20px;
 }
-.manage-state.empty p {
-  margin: 0;
-}
 
 /* Tombol bahaya buat aksi hapus. */
 .btn-danger {
@@ -633,9 +637,13 @@ const confirmDeleteQuestion = async (q) => {
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
 .btn-danger:hover:not(:disabled) {
   background: #dc2626;
+}
+.btn-danger:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .btn-danger:disabled {
   opacity: 0.6;
@@ -649,8 +657,12 @@ const confirmDeleteQuestion = async (q) => {
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
 .btn-danger-outline:hover {
   background: #fef2f2;
+}
+.btn-danger-outline:active {
+  transform: translateY(1px);
 }
 </style>

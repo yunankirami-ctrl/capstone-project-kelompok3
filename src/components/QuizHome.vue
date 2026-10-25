@@ -99,15 +99,18 @@ defineExpose({ reopen })
 </template>
 
 <style scoped>
-/* Style kartu */
-.loading-state,
-.empty-state {
+/* Loading lokal. */
+.loading-state {
   background: white;
   border: 2px dashed #e5e7eb;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   padding: 30px;
   text-align: center;
   color: #6b7280;
+  margin-top: 20px;
+}
+
+.empty-state {
   margin-top: 20px;
 }
 </style>

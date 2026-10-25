@@ -231,7 +231,7 @@ const handleChangePassword = async () => {
 
       <div v-if="loadingStats" class="profile-state">Memuat riwayat...</div>
       <div v-else-if="statsError" class="profile-state error">{{ statsError }}</div>
-      <div v-else-if="attempts.length === 0" class="profile-state">
+      <div v-else-if="attempts.length === 0" class="empty-state">
         Belum ada nilai. Selesaikan kuis pertamamu di Beranda Kuis!
       </div>
 
@@ -267,8 +267,8 @@ const handleChangePassword = async () => {
 .profile-card {
   background: white;
   padding: 22px;
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .profile-card h3 {
@@ -284,8 +284,8 @@ const handleChangePassword = async () => {
   gap: 16px;
   background: white;
   padding: 22px;
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .hero-info h2 {
@@ -320,10 +320,10 @@ const handleChangePassword = async () => {
 
 .stat-card {
   background: white;
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   padding: 16px;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -403,9 +403,11 @@ const handleChangePassword = async () => {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
 
 .btn-edit:hover { background: #e0e7ff; }
+.btn-edit:active { transform: translateY(1px); }
 
 .btn-save {
   background: #4f46e5;
@@ -418,7 +420,11 @@ const handleChangePassword = async () => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
+
+.btn-save:hover:not(:disabled) { background: #4338ca; }
+.btn-save:active:not(:disabled) { transform: translateY(1px); }
 
 .btn-cancel {
   background: transparent;
@@ -427,7 +433,10 @@ const handleChangePassword = async () => {
   padding: 8px 14px;
   border-radius: 8px;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
+
+.btn-cancel:hover { background: #f1f5f9; }
 
 .pass-form {
   margin-top: 14px;

@@ -59,7 +59,7 @@ watch(() => props.refreshKey, fetchLeaderboard)
       </li>
     </ul>
 
-    <p v-else class="state-text">Belum ada data peringkat. Jadilah murid pertama yang mengerjakan kuis!</p>
+    <p v-else class="empty-state">Belum ada data peringkat. Jadilah murid pertama yang mengerjakan kuis!</p>
   </div>
 </template>
 
@@ -67,8 +67,8 @@ watch(() => props.refreshKey, fetchLeaderboard)
 .leaderboard-card {
   background: white;
   padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   max-width: 560px;
   margin: 20px auto;
 }
@@ -139,5 +139,12 @@ h2 {
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.retry-btn:hover {
+  background: #4338ca;
+}
+.retry-btn:active {
+  transform: translateY(1px);
 }
 </style>

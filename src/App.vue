@@ -402,8 +402,8 @@ onUnmounted(() => toast.hide())
 .result-card {
   background: white;
   padding: 24px;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   text-align: center;
 }
 
@@ -426,12 +426,21 @@ onUnmounted(() => toast.hide())
   border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-restart:hover {
+  background: #4338ca;
+}
+
+.btn-restart:active {
+  transform: translateY(1px);
 }
 
 .loading-state {
   background: white;
   border: 2px dashed #e5e7eb;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   padding: 30px;
   text-align: center;
   color: #6b7280;
